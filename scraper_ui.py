@@ -275,7 +275,7 @@ class InteractiveScraper:
         else:
             return "browser"
 
-    async def scrape_single_gallery(self):
+    def scrape_single_gallery(self):
         """Scrape a single gallery"""
         console.print()
         url = questionary.text(
@@ -290,12 +290,12 @@ class InteractiveScraper:
         mode = self.mode_to_string(mode_choice)
 
         console.print()
-        await self.scraper.scrape_gallery(url, mode=mode)
+        asyncio.run(self.scraper.scrape_gallery(url, mode=mode))
 
         console.print("\n[green]✓ Gallery scraping complete![/green]\n")
         input("Press Enter to continue...")
 
-    async def scrape_category(self):
+    def scrape_category(self):
         """Scrape entire category"""
         console.print()
         category_url = questionary.text(
@@ -360,7 +360,7 @@ class InteractiveScraper:
         for i, url in enumerate(gallery_links, 1):
             console.print(f"\n[bold cyan]═══ Gallery {i}/{len(gallery_links)} ═══[/bold cyan]\n")
             try:
-                await self.scraper.scrape_gallery(url, mode=mode)
+                asyncio.run(self.scraper.scrape_gallery(url, mode=mode))
             except Exception as e:
                 console.print(f"[red]✗ Error: {e}[/red]")
                 continue
@@ -368,7 +368,7 @@ class InteractiveScraper:
         console.print("\n[bold green]✨ Category scraping complete![/bold green]\n")
         input("Press Enter to continue...")
 
-    async def batch_scrape(self):
+    def batch_scrape(self):
         """Batch scrape from file"""
         console.print()
         file_path = questionary.path(
@@ -390,7 +390,7 @@ class InteractiveScraper:
         mode_choice = self.get_scrape_mode()
         mode = self.mode_to_string(mode_choice)
 
-        await self.scraper.scrape_multiple(urls, mode=mode)
+        asyncio.run(self.scraper.scrape_multiple(urls, mode=mode))
 
         console.print("\n[green]✓ Batch scraping complete![/green]\n")
         input("Press Enter to continue...")
@@ -414,7 +414,7 @@ class InteractiveScraper:
         console.print()
         input("Press Enter to continue...")
 
-    async def run(self):
+    def run(self):
         """Main run loop"""
         self.show_banner()
 
@@ -426,11 +426,11 @@ class InteractiveScraper:
                 break
 
             if "Single Gallery" in choice:
-                await self.scrape_single_gallery()
+                self.scrape_single_gallery()
             elif "Entire Category" in choice:
-                await self.scrape_category()
+                self.scrape_category()
             elif "Batch Scrape" in choice:
-                await self.batch_scrape()
+                self.batch_scrape()
             elif "Settings" in choice:
                 self.show_settings()
 
@@ -439,7 +439,7 @@ def main():
     """Entry point"""
     try:
         scraper = InteractiveScraper()
-        asyncio.run(scraper.run())
+        scraper.run()
     except KeyboardInterrupt:
         console.print("\n\n[yellow]⚠ Interrupted by user[/yellow]\n")
     except Exception as e:
