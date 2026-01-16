@@ -414,7 +414,7 @@ class GalleryDetector:
             img_tag.get('data-full'),
             img_tag.get('data-large'),
             img_tag.get('data-lazy'),
-            img_tag.get('srcset', '').split(',')[0].split()[0] if img_tag.get('srcset') else None,
+            self._parse_srcset(img_tag),
             img_tag.get('src'),
         ]
 
@@ -423,6 +423,20 @@ class GalleryDetector:
                 return urljoin(base_url, url)
 
         return None
+
+    def _parse_srcset(self, img_tag) -> Optional[str]:
+        """Safely parse srcset attribute"""
+        try:
+            srcset = img_tag.get('srcset', '') if img_tag else None
+            if not srcset:
+                return None
+
+            # srcset format: "url1 width1, url2 width2"
+            # Get first URL
+            parts = srcset.split(',')[0].split()
+            return parts[0] if parts else None
+        except (AttributeError, IndexError, TypeError):
+            return None
 
     @staticmethod
     def _is_image_url(url: str) -> bool:
