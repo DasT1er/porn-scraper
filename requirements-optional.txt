@@ -1,0 +1,6 @@
+# Optional dependencies for enhanced functionality
+
+# Image validation (checks dimensions, not just file size)
+# On Windows, this may require Visual C++ build tools
+# The scraper works fine without it!
+Pillow==10.2.0

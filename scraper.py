@@ -30,8 +30,14 @@ from rich.live import Live
 from rich import box
 import yaml
 import click
-from PIL import Image
 import io
+
+# Optional Pillow import for image validation
+try:
+    from PIL import Image
+    HAS_PILLOW = True
+except ImportError:
+    HAS_PILLOW = False
 
 
 console = Console()
@@ -217,6 +223,12 @@ class ImageDownloader:
         self.min_width = config['scraper'].get('min_width', 500)
         self.min_height = config['scraper'].get('min_height', 500)
 
+        # Show warning if Pillow is not available
+        if not HAS_PILLOW:
+            console.print("[yellow]⚠ Pillow not installed - image dimension validation disabled[/yellow]")
+            console.print("[yellow]  Only file size will be checked. Install Pillow for full validation:[/yellow]")
+            console.print("[yellow]  pip install Pillow --prefer-binary[/yellow]\n")
+
     async def download_images(
         self,
         image_urls: List[str],
@@ -307,17 +319,22 @@ class ImageDownloader:
         if len(content) < self.min_size:
             return False
 
-        # Check dimensions
-        try:
-            img = Image.open(io.BytesIO(content))
-            width, height = img.size
+        # Check dimensions (only if Pillow is available)
+        if HAS_PILLOW:
+            try:
+                img = Image.open(io.BytesIO(content))
+                width, height = img.size
 
-            if width < self.min_width or height < self.min_height:
+                if width < self.min_width or height < self.min_height:
+                    return False
+
+                return True
+            except Exception:
                 return False
-
+        else:
+            # Without Pillow, we can only validate file size
+            # Assume image is valid if it's large enough
             return True
-        except Exception:
-            return False
 
     def _generate_filename(self, url: str, index: int) -> str:
         """Generate filename from URL and index"""

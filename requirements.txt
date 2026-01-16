@@ -11,8 +11,10 @@ aiohttp==3.9.3
 rich==13.7.0
 click==8.1.7
 
-# Image processing
-Pillow==10.2.0
+# Image processing (OPTIONAL - for image dimension validation)
+# Scraper works without Pillow but will only validate file size, not dimensions
+# If installation fails on Windows, the scraper will still work fine
+# Pillow==10.2.0  # Uncomment if you want full image validation
 
 # Configuration
 pyyaml==6.0.1

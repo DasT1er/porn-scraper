@@ -22,6 +22,16 @@ Ein intelligenter, automatischer Scraper für Bildergalerien und Comics mit sch�
 pip install -r requirements.txt
 ```
 
+**Hinweis für Windows-Nutzer:** Falls Pillow-Installation fehlschlägt:
+- Der Scraper funktioniert auch ohne Pillow!
+- Ohne Pillow: Nur Dateigröße wird geprüft (nicht Bildauflösung)
+- Die wichtigen Features (Container-Erkennung, Multi-Page, etc.) funktionieren trotzdem!
+
+**Optional - Pillow für vollständige Bildvalidierung:**
+```bash
+pip install -r requirements-optional.txt
+```
+
 ### 2. Playwright-Browser installieren
 
 ```bash
@@ -180,6 +190,13 @@ Der Scraper verwendet mehrere Strategien:
 ```
 
 ## 🔧 Troubleshooting
+
+### Pillow Installation schlägt fehl (Windows)
+- **Das ist nicht schlimm!** Der Scraper funktioniert auch ohne Pillow
+- Ohne Pillow wird nur die Dateigröße geprüft, nicht die Bildauflösung
+- Alle wichtigen Features (Galerie-Erkennung, Multi-Page, etc.) funktionieren trotzdem
+- Du bekommst eine gelbe Warnung beim Start, kannst aber normal scrapen
+- Falls du Pillow trotzdem willst: `pip install Pillow --prefer-binary`
 
 ### "No images found"
 - Seite verwendet möglicherweise ungewöhnliche Struktur
