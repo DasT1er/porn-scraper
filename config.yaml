@@ -21,13 +21,13 @@ download:
 
 # Scraper Settings
 scraper:
-  # Scraping mode: "browser" (recommended), "auto" (try light first), "light" (requests only)
-  # Browser mode is most reliable and works on all sites
-  default_mode: "browser"
+  # Scraping mode: "auto" (try light first, fallback to browser), "browser" (selenium), "light" (requests only)
+  # Auto mode tries light mode first, then switches to browser if needed
+  default_mode: "auto"
 
   # Minimum images to find before considering light mode successful
   # If fewer images found, auto mode will switch to browser mode
-  min_images_threshold: 10  # Increased from 5 to prefer browser mode
+  min_images_threshold: 5
 
   # Browser settings (for Selenium mode)
   headless: true

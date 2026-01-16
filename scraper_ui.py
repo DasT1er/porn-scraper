@@ -259,18 +259,18 @@ class InteractiveScraper:
         return questionary.select(
             "Select scraping mode:",
             choices=[
-                "🌐 Browser Mode (Works everywhere) (Recommended)",
-                "⚡ Auto (Try fast first, then Browser)",
+                "⚡ Auto (Try fast first, then Browser) (Recommended)",
+                "🌐 Browser Mode (Works everywhere)",
                 "🚀 Light Mode (Fast, but limited)"
             ],
             style=custom_style,
-            default="🌐 Browser Mode (Works everywhere) (Recommended)"
+            default="⚡ Auto (Try fast first, then Browser) (Recommended)"
         ).ask()
 
     def mode_to_string(self, mode_choice: str) -> str:
         """Convert mode choice to mode string"""
         if not mode_choice:  # Handle None or empty
-            return "browser"  # Default to browser if no choice
+            return "auto"  # Default to auto if no choice
 
         if "Auto" in mode_choice:
             return "auto"
