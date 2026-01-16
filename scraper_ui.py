@@ -145,13 +145,15 @@ class CategoryDetector:
 
         console.print(f"[cyan]🌐 Using Browser Mode for category scan...[/cyan]")
 
-        # Setup Chrome options
+        # Setup Chrome options with better anti-detection
         chrome_options = Options()
         chrome_options.add_argument('--headless')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_argument('--disable-infobars')
+        chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
         chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
@@ -162,26 +164,54 @@ class CategoryDetector:
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=chrome_options)
 
+            # Execute script to hide webdriver property
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
             # Load page
+            console.print(f"[dim]Loading: {url}[/dim]")
             driver.get(url)
-            time.sleep(3)  # Wait for page to load
+
+            # Wait longer for page to load
+            time.sleep(5)
 
             # Get page source
             html = driver.page_source
+
+            # Check if we got actual content
+            if not html or len(html) < 100:
+                console.print(f"[yellow]⚠ Page returned empty or very short content[/yellow]")
+                return None
+
+            # Parse with BeautifulSoup
             soup = BeautifulSoup(html, 'html.parser')
 
+            # Verify soup has content
+            if not soup or not soup.find():
+                console.print(f"[yellow]⚠ Failed to parse HTML content[/yellow]")
+                return None
+
+            console.print(f"[green]✓ Page loaded successfully[/green]")
             return soup
 
         except Exception as e:
             console.print(f"[red]✗ Browser error: {e}[/red]")
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
             return None
         finally:
             if driver:
-                driver.quit()
+                try:
+                    driver.quit()
+                except:
+                    pass
 
     def _extract_gallery_links(self, soup: BeautifulSoup, base_url: str) -> List[str]:
         """Extract gallery links from category page"""
         gallery_links = []
+
+        # Safety check
+        if not soup:
+            return gallery_links
 
         # Common patterns for gallery links
         patterns = [
@@ -192,7 +222,10 @@ class CategoryDetector:
         ]
 
         # Find all links
-        all_links = soup.find_all('a', href=True)
+        try:
+            all_links = soup.find_all('a', href=True)
+        except Exception:
+            return gallery_links
 
         for link in all_links:
             href = link.get('href', '')
@@ -249,57 +282,66 @@ class CategoryDetector:
 
     def _find_next_category_page(self, soup: BeautifulSoup, current_url: str) -> Optional[str]:
         """Find next page in category pagination"""
-        # Strategy 1: Look for explicit "Next" links (case insensitive)
-        all_links = soup.find_all('a', href=True)
-        for link in all_links:
-            link_text = link.get_text(strip=True).lower()
-            # Check for "Next", "»", ">", "→"
-            if link_text in ['next', 'next »', '»', '>', '→', 'weiter', 'nächste']:
-                href = link.get('href')
-                if href and not href.startswith('#'):
-                    next_url = urljoin(current_url, href)
-                    console.print(f"[dim]  → Found 'Next' link: {next_url}[/dim]")
-                    return next_url
+        # Safety check
+        if not soup:
+            return None
 
-        # Strategy 2: Look for page "2" link (if we're on page 1)
-        # This handles numeric pagination like "1 [2] [3] ..."
-        parsed_current = urlparse(current_url)
-        has_page_param = 'page' in parsed_current.query
+        try:
+            # Strategy 1: Look for explicit "Next" links (case insensitive)
+            all_links = soup.find_all('a', href=True)
 
-        if not has_page_param:  # We're probably on page 1
             for link in all_links:
-                link_text = link.get_text(strip=True)
-                href = link.get('href', '')
-
-                # Look for link with text "2" that has "page" in URL
-                if link_text == '2' and 'page' in href:
-                    next_url = urljoin(current_url, href)
-                    console.print(f"[dim]  → Found page 2 link: {next_url}[/dim]")
-                    return next_url
-
-        # Strategy 3: Common pagination CSS selectors
-        selectors = [
-            'a.next',
-            'a[rel="next"]',
-            '.pagination a',
-            '.pager a',
-            'a.nextpostslink',
-        ]
-
-        for selector in selectors:
-            try:
-                next_link = soup.select_one(selector)
-                if next_link:
-                    href = next_link.get('href')
+                link_text = link.get_text(strip=True).lower()
+                # Check for "Next", "»", ">", "→"
+                if link_text in ['next', 'next »', '»', '>', '→', 'weiter', 'nächste']:
+                    href = link.get('href')
                     if href and not href.startswith('#'):
                         next_url = urljoin(current_url, href)
-                        console.print(f"[dim]  → Found via selector '{selector}': {next_url}[/dim]")
+                        console.print(f"[dim]  → Found 'Next' link: {next_url}[/dim]")
                         return next_url
-            except Exception:
-                continue
 
-        console.print(f"[dim]  → No next page link found[/dim]")
-        return None
+            # Strategy 2: Look for page "2" link (if we're on page 1)
+            # This handles numeric pagination like "1 [2] [3] ..."
+            parsed_current = urlparse(current_url)
+            has_page_param = 'page' in parsed_current.query
+
+            if not has_page_param:  # We're probably on page 1
+                for link in all_links:
+                    link_text = link.get_text(strip=True)
+                    href = link.get('href', '')
+
+                    # Look for link with text "2" that has "page" in URL
+                    if link_text == '2' and 'page' in href:
+                        next_url = urljoin(current_url, href)
+                        console.print(f"[dim]  → Found page 2 link: {next_url}[/dim]")
+                        return next_url
+
+            # Strategy 3: Common pagination CSS selectors
+            selectors = [
+                'a.next',
+                'a[rel="next"]',
+                '.pagination a',
+                '.pager a',
+                'a.nextpostslink',
+            ]
+
+            for selector in selectors:
+                try:
+                    next_link = soup.select_one(selector)
+                    if next_link:
+                        href = next_link.get('href')
+                        if href and not href.startswith('#'):
+                            next_url = urljoin(current_url, href)
+                            console.print(f"[dim]  → Found via selector '{selector}': {next_url}[/dim]")
+                            return next_url
+                except Exception:
+                    continue
+
+            console.print(f"[dim]  → No next page link found[/dim]")
+            return None
+        except Exception as e:
+            console.print(f"[dim]  → Error finding next page: {e}[/dim]")
+            return None
 
 
 class InteractiveScraper:
