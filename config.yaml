@@ -100,6 +100,22 @@ ui:
   # Verbosity: "quiet", "normal", "verbose"
   verbosity: "normal"
 
+# Metadata Extraction
+metadata:
+  # Save metadata.json file with gallery info
+  save_metadata: true
+
+  # Metadata fields to extract:
+  # - title: Gallery title
+  # - tags: Tags/categories
+  # - artist: Artist/author name
+  # - date: Upload/publish date
+  # - category: Category/series
+  # - description: Gallery description
+  # - url: Source URL
+  # - scraped_at: Timestamp when scraped
+  # - image_count: Number of images
+
 # Advanced
 advanced:
   # Custom headers

@@ -8,6 +8,8 @@ Uses Requests for simple pages, Selenium for JavaScript-heavy pages
 import asyncio
 import re
 import time
+import json
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Set, Tuple
 from urllib.parse import urljoin, urlparse
@@ -54,6 +56,251 @@ except ImportError:
 
 
 console = Console()
+
+
+class MetadataExtractor:
+    """Extracts metadata from gallery pages"""
+
+    def __init__(self, config: dict):
+        self.config = config
+        self.metadata_config = config.get('metadata', {})
+
+    def extract_metadata(self, html: str, url: str, image_count: int) -> Dict:
+        """
+        Extract metadata from gallery HTML
+
+        Args:
+            html: Page HTML
+            url: Gallery URL
+            image_count: Number of images found
+
+        Returns:
+            Dictionary with metadata
+        """
+        soup = BeautifulSoup(html, 'html.parser')
+
+        metadata = {
+            'url': url,
+            'scraped_at': datetime.now().isoformat(),
+            'image_count': image_count,
+        }
+
+        # Extract title
+        metadata['title'] = self._extract_title(soup, url)
+
+        # Extract tags
+        metadata['tags'] = self._extract_tags(soup)
+
+        # Extract artist/author
+        metadata['artist'] = self._extract_artist(soup)
+
+        # Extract date
+        metadata['date'] = self._extract_date(soup)
+
+        # Extract category/series
+        metadata['category'] = self._extract_category(soup, url)
+
+        # Extract description
+        metadata['description'] = self._extract_description(soup)
+
+        return metadata
+
+    def _extract_title(self, soup: BeautifulSoup, url: str) -> str:
+        """Extract gallery title"""
+        # Try multiple methods
+        title_selectors = [
+            'h1',
+            '.title',
+            '.post-title',
+            '#title',
+            'title',
+            '.entry-title',
+            '.comic-title',
+            '.gallery-title',
+        ]
+
+        for selector in title_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    title = element.get_text().strip()
+                    if title and len(title) > 3:
+                        # Clean up title
+                        title = re.sub(r'\s+', ' ', title)
+                        return title
+            except:
+                continue
+
+        # Fallback: use URL
+        return self._title_from_url(url)
+
+    def _title_from_url(self, url: str) -> str:
+        """Generate title from URL"""
+        path = urlparse(url).path
+        # Get last part of path
+        parts = [p for p in path.split('/') if p]
+        if parts:
+            title = parts[-1]
+            # Replace dashes/underscores with spaces
+            title = title.replace('-', ' ').replace('_', ' ')
+            # Remove file extensions
+            title = re.sub(r'\.(html|php|aspx?)$', '', title)
+            # Capitalize
+            title = title.title()
+            return title
+        return "Unknown Gallery"
+
+    def _extract_tags(self, soup: BeautifulSoup) -> List[str]:
+        """Extract tags from page"""
+        tags = []
+
+        # Common tag selectors
+        tag_selectors = [
+            '.tags a',
+            '.tag',
+            '.post-tag',
+            'a[rel="tag"]',
+            '.label',
+            '.badge',
+        ]
+
+        for selector in tag_selectors:
+            try:
+                elements = soup.select(selector)
+                for elem in elements:
+                    tag = elem.get_text().strip()
+                    if tag and len(tag) > 1 and tag not in tags:
+                        tags.append(tag)
+            except:
+                continue
+
+        return tags[:20]  # Limit to 20 tags
+
+    def _extract_artist(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract artist/author name"""
+        artist_selectors = [
+            '.artist',
+            '.author',
+            '.by-author a',
+            'a[rel="author"]',
+            '.creator',
+            '.artist-name',
+        ]
+
+        for selector in artist_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    artist = element.get_text().strip()
+                    if artist and len(artist) > 2:
+                        return artist
+            except:
+                continue
+
+        return None
+
+    def _extract_date(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract upload/publish date"""
+        date_selectors = [
+            'time',
+            '.date',
+            '.published',
+            '.post-date',
+            '.upload-date',
+        ]
+
+        for selector in date_selectors:
+            try:
+                element = soup.select_one(selector)
+                if element:
+                    # Try datetime attribute
+                    date_str = element.get('datetime')
+                    if date_str:
+                        return date_str
+
+                    # Try text content
+                    date_text = element.get_text().strip()
+                    if date_text:
+                        return date_text
+            except:
+                continue
+
+        return None
+
+    def _extract_category(self, soup: BeautifulSoup, url: str) -> Optional[str]:
+        """Extract category or series"""
+        category_selectors = [
+            '.category',
+            '.series',
+            '.breadcrumb a',
+            '.cat-links a',
+        ]
+
+        for selector in category_selectors:
+            try:
+                elements = soup.select(selector)
+                if elements:
+                    # Return last category (most specific)
+                    cat = elements[-1].get_text().strip()
+                    if cat and len(cat) > 2:
+                        return cat
+            except:
+                continue
+
+        # Try from URL path
+        path = urlparse(url).path
+        if '/category/' in path:
+            parts = path.split('/category/')
+            if len(parts) > 1:
+                return parts[1].split('/')[0].replace('-', ' ').title()
+
+        return None
+
+    def _extract_description(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract gallery description"""
+        desc_selectors = [
+            '.description',
+            '.content',
+            '.post-content',
+            '.entry-content',
+            'meta[name="description"]',
+        ]
+
+        for selector in desc_selectors:
+            try:
+                if selector.startswith('meta'):
+                    element = soup.select_one(selector)
+                    if element:
+                        desc = element.get('content', '').strip()
+                        if desc and len(desc) > 10:
+                            return desc[:500]  # Limit length
+                else:
+                    element = soup.select_one(selector)
+                    if element:
+                        desc = element.get_text().strip()
+                        if desc and len(desc) > 10:
+                            # Limit and clean
+                            desc = re.sub(r'\s+', ' ', desc)
+                            return desc[:500]
+            except:
+                continue
+
+        return None
+
+    def save_metadata(self, metadata: Dict, output_dir: Path):
+        """Save metadata to JSON file"""
+        if not self.metadata_config.get('save_metadata', True):
+            return
+
+        metadata_file = output_dir / 'metadata.json'
+
+        try:
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, indent=2, ensure_ascii=False)
+
+            console.print(f"[green]✓ Saved metadata to {metadata_file.name}[/green]")
+        except Exception as e:
+            console.print(f"[yellow]⚠ Failed to save metadata: {e}[/yellow]")
 
 
 class GalleryDetector:
@@ -358,6 +605,7 @@ class HybridScraper:
         self.config = self._load_config(config_path)
         self.detector = GalleryDetector(self.config)
         self.downloader = ImageDownloader(self.config)
+        self.metadata_extractor = MetadataExtractor(self.config)
         self.driver = None
 
     def _load_config(self, config_path: str) -> dict:
@@ -473,6 +721,24 @@ class HybridScraper:
                 progress,
                 task
             )
+
+        # Extract and save metadata
+        if self.config.get('metadata', {}).get('save_metadata', True):
+            console.print("\n[cyan]📝 Extracting metadata...[/cyan]")
+            try:
+                # Fetch page for metadata
+                headers = {
+                    'User-Agent': self.config['scraper'].get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+                }
+                response = requests.get(url, headers=headers, timeout=30)
+                metadata = self.metadata_extractor.extract_metadata(
+                    response.text,
+                    url,
+                    len(all_images)
+                )
+                self.metadata_extractor.save_metadata(metadata, output_dir)
+            except Exception as e:
+                console.print(f"[yellow]⚠ Failed to extract metadata: {e}[/yellow]")
 
         # Show summary
         self._show_summary(stats, output_dir)

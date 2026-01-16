@@ -6,6 +6,7 @@ Ein intelligenter, automatischer Scraper für Bildergalerien und Comics mit **Hy
 
 - 🎯 **Interaktives Terminal-UI** - Schönes Menü mit Pfeiltasten-Navigation (NEU!)
 - 📁 **Auto-Kategorie-Scraper** - Scraped ganze Kategorien automatisch (NEU!)
+- 📝 **Metadata-Extraktion** - Speichert Titel, Tags, Künstler, Datum automatisch (NEU!)
 - 🤖 **Automatische Galerie-Erkennung** - Findet Galerien ohne manuelle Konfiguration
 - ⚡ **Hybrid-Modus** - Versucht erst schnelle Methode, dann Browser wenn nötig
 - 🎨 **Schönes Rich UI** - Farben, Fortschrittsbalken, Live-Statistiken
@@ -217,6 +218,57 @@ https://multporn.net/comics
 - Alle Galerien eines Künstlers
 - Komplette Kategorien archivieren
 - Neue Uploads in deinen Lieblings-Kategorien
+
+## 📝 Metadata-Extraktion (NEU!)
+
+### Automatische Galerie-Informationen
+
+Der Scraper extrahiert automatisch Metadaten aus jeder Galerie und speichert sie als `metadata.json`:
+
+**Extrahierte Felder:**
+- 📌 **Titel** - Galerie-Name
+- 🏷️ **Tags** - Alle Tags/Kategorien
+- 👨‍🎨 **Künstler** - Author/Artist Name
+- 📅 **Datum** - Upload/Veröffentlichungsdatum
+- 📂 **Kategorie** - Serie/Kategorie
+- 📄 **Beschreibung** - Galerie-Beschreibung
+- 🔗 **URL** - Original-URL
+- ⏰ **Scraped At** - Wann du es heruntergeladen hast
+- 🖼️ **Anzahl Bilder** - Wie viele Bilder
+
+### Beispiel metadata.json:
+
+```json
+{
+  "url": "https://multporn.net/comics/moonstruck",
+  "scraped_at": "2026-01-16T15:30:00",
+  "image_count": 45,
+  "title": "Moonstruck - Star vs The Forces of Evil",
+  "tags": ["Star Butterfly", "Marco Diaz", "Parody", "Comedy"],
+  "artist": "BlueNightKitty",
+  "date": "2024-12-15",
+  "category": "Star vs The Forces of Evil",
+  "description": "A fun parody comic featuring Star and Marco..."
+}
+```
+
+### Wozu ist das gut?
+
+- 🔍 **Durchsuchbar** - Finde Galerien später wieder
+- 📊 **Statistiken** - Wieviele Galerien von welchem Künstler?
+- 🗂️ **Organisation** - Sortiere nach Tags, Datum, Künstler
+- 📋 **Datenbank** - Import in eigene Datenbank möglich
+- 🏷️ **Tagging** - Automatisches Tagging für Media-Player
+
+### Konfiguration:
+
+```yaml
+# In config.yaml
+metadata:
+  save_metadata: true  # false um zu deaktivieren
+```
+
+**Hinweis:** Metadata wird intelligent extrahiert - der Scraper versucht mehrere Methoden um die Informationen zu finden!
 
 ## ⚙️ Konfiguration
 
