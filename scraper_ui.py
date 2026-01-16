@@ -67,6 +67,7 @@ class CategoryDetector:
         visited_urls = set()
         current_url = category_url
         page_num = 1
+        use_browser = False  # Start with requests, switch to browser if needed
 
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -81,12 +82,32 @@ class CategoryDetector:
             try:
                 console.print(f"[cyan]📄 Scanning page {page_num}...[/cyan]")
 
-                # Fetch category page
-                response = requests.get(current_url, headers=headers, timeout=30)
-                response.raise_for_status()
+                # Try to fetch the page
+                soup = None
 
-                # Parse HTML
-                soup = BeautifulSoup(response.text, 'html.parser')
+                if not use_browser:
+                    # Try with requests first
+                    try:
+                        response = requests.get(current_url, headers=headers, timeout=30)
+
+                        # If we get 403 or similar, switch to browser mode
+                        if response.status_code in [403, 401, 429]:
+                            console.print(f"[yellow]⚠ Access blocked (HTTP {response.status_code}), switching to Browser mode...[/yellow]")
+                            use_browser = True
+                        else:
+                            response.raise_for_status()
+                            soup = BeautifulSoup(response.text, 'html.parser')
+                    except requests.exceptions.RequestException as e:
+                        console.print(f"[yellow]⚠ Request failed: {e}, switching to Browser mode...[/yellow]")
+                        use_browser = True
+
+                # Use browser mode if needed
+                if use_browser:
+                    soup = self._fetch_with_browser(current_url)
+
+                if not soup:
+                    console.print(f"[red]✗ Failed to fetch page {page_num}[/red]")
+                    break
 
                 # Extract gallery links
                 gallery_links = self._extract_gallery_links(soup, current_url)
@@ -113,6 +134,50 @@ class CategoryDetector:
         console.print(f"\n[bold green]✓ Total galleries found: {len(unique_galleries)}[/bold green]\n")
 
         return unique_galleries
+
+    def _fetch_with_browser(self, url: str):
+        """Fetch page using Selenium browser"""
+        from selenium import webdriver
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from webdriver_manager.chrome import ChromeDriverManager
+        import time
+
+        console.print(f"[cyan]🌐 Using Browser Mode for category scan...[/cyan]")
+
+        # Setup Chrome options
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+
+        driver = None
+        try:
+            # Initialize driver
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+
+            # Load page
+            driver.get(url)
+            time.sleep(3)  # Wait for page to load
+
+            # Get page source
+            html = driver.page_source
+            soup = BeautifulSoup(html, 'html.parser')
+
+            return soup
+
+        except Exception as e:
+            console.print(f"[red]✗ Browser error: {e}[/red]")
+            return None
+        finally:
+            if driver:
+                driver.quit()
 
     def _extract_gallery_links(self, soup: BeautifulSoup, base_url: str) -> List[str]:
         """Extract gallery links from category page"""
