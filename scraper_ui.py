@@ -184,37 +184,56 @@ class CategoryDetector:
 
     def _find_next_category_page(self, soup: BeautifulSoup, current_url: str) -> Optional[str]:
         """Find next page in category pagination"""
-        # Common pagination selectors
+        # Strategy 1: Look for explicit "Next" links (case insensitive)
+        all_links = soup.find_all('a', href=True)
+        for link in all_links:
+            link_text = link.get_text(strip=True).lower()
+            # Check for "Next", "»", ">", "→"
+            if link_text in ['next', 'next »', '»', '>', '→', 'weiter', 'nächste']:
+                href = link.get('href')
+                if href and not href.startswith('#'):
+                    next_url = urljoin(current_url, href)
+                    console.print(f"[dim]  → Found 'Next' link: {next_url}[/dim]")
+                    return next_url
+
+        # Strategy 2: Look for page "2" link (if we're on page 1)
+        # This handles numeric pagination like "1 [2] [3] ..."
+        parsed_current = urlparse(current_url)
+        has_page_param = 'page' in parsed_current.query
+
+        if not has_page_param:  # We're probably on page 1
+            for link in all_links:
+                link_text = link.get_text(strip=True)
+                href = link.get('href', '')
+
+                # Look for link with text "2" that has "page" in URL
+                if link_text == '2' and 'page' in href:
+                    next_url = urljoin(current_url, href)
+                    console.print(f"[dim]  → Found page 2 link: {next_url}[/dim]")
+                    return next_url
+
+        # Strategy 3: Common pagination CSS selectors
         selectors = [
             'a.next',
             'a[rel="next"]',
-            '.pagination a:contains("Next")',
-            '.pagination a:contains("»")',
-            '.pagination a:contains(">")',
+            '.pagination a',
+            '.pager a',
             'a.nextpostslink',
         ]
 
         for selector in selectors:
             try:
-                if ':contains' in selector:
-                    # For :contains, find all links and check text
-                    base_selector = selector.split(':contains')[0]
-                    text = selector.split('("')[1].split('")')[0]
-                    links = soup.select(base_selector)
-                    for link in links:
-                        if text in link.get_text():
-                            href = link.get('href')
-                            if href:
-                                return urljoin(current_url, href)
-                else:
-                    next_link = soup.select_one(selector)
-                    if next_link:
-                        href = next_link.get('href')
-                        if href:
-                            return urljoin(current_url, href)
+                next_link = soup.select_one(selector)
+                if next_link:
+                    href = next_link.get('href')
+                    if href and not href.startswith('#'):
+                        next_url = urljoin(current_url, href)
+                        console.print(f"[dim]  → Found via selector '{selector}': {next_url}[/dim]")
+                        return next_url
             except Exception:
                 continue
 
+        console.print(f"[dim]  → No next page link found[/dim]")
         return None
 
 
