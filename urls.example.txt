@@ -1,0 +1,11 @@
+# Example URLs file
+# Add your gallery URLs here (one per line)
+# Lines starting with # are ignored
+
+# Example:
+# https://example.com/gallery/12345
+# https://example.com/album/abc
+# https://example.com/comic/xyz
+
+# Add your URLs below:
+

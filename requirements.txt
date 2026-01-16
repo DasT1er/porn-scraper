@@ -1,0 +1,23 @@
+# Web scraping
+playwright==1.41.0
+beautifulsoup4==4.12.3
+lxml==5.1.0
+
+# HTTP requests
+httpx==0.26.0
+aiohttp==3.9.3
+
+# UI and CLI
+rich==13.7.0
+click==8.1.7
+
+# Image processing
+Pillow==10.2.0
+
+# Configuration
+pyyaml==6.0.1
+python-dotenv==1.0.1
+
+# Utilities
+tqdm==4.66.1
+validators==0.22.0
