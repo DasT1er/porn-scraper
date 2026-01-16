@@ -1,0 +1,105 @@
+# Porn Scraper Configuration
+
+# Download Settings
+download:
+  # Base directory for downloads
+  output_dir: "./downloads"
+
+  # Create subdirectories for each gallery
+  create_subdirs: true
+
+  # Naming pattern: {title}, {url}, {index}, {timestamp}
+  folder_pattern: "{title}"
+  file_pattern: "{index:03d}_{filename}"
+
+  # Concurrent downloads
+  max_concurrent: 5
+
+  # Retry settings
+  max_retries: 3
+  retry_delay: 2
+
+# Scraper Settings
+scraper:
+  # Browser settings
+  headless: true
+  browser_type: "chromium"  # chromium, firefox, webkit
+
+  # Timeout in milliseconds
+  page_timeout: 30000
+
+  # Wait for images to load
+  wait_for_images: true
+
+  # User agent (leave empty for default)
+  user_agent: ""
+
+  # Minimum image size to download (in KB)
+  min_image_size: 50
+
+  # Minimum image dimensions (width x height)
+  min_width: 500
+  min_height: 500
+
+# Gallery Detection
+detection:
+  # Auto-detect gallery containers
+  auto_detect: true
+
+  # CSS selectors to try (in order)
+  gallery_selectors:
+    - ".gallery"
+    - ".image-gallery"
+    - "#gallery"
+    - ".post-content"
+    - ".entry-content"
+    - "article"
+
+  # Exclude these selectors (ads, thumbnails, etc.)
+  exclude_selectors:
+    - ".advertisement"
+    - ".ad"
+    - ".sidebar"
+    - ".nav"
+    - ".header"
+    - ".footer"
+    - ".thumbnail"
+    - ".thumb"
+
+  # Detect pagination
+  detect_pagination: true
+  pagination_selectors:
+    - ".pagination a"
+    - ".next-page"
+    - "a[rel='next']"
+
+  # Maximum pages to scrape per gallery
+  max_pages: 100
+
+# UI Settings
+ui:
+  # Show progress bars
+  show_progress: true
+
+  # Show live statistics
+  show_stats: true
+
+  # Color theme: "auto", "dark", "light"
+  theme: "auto"
+
+  # Verbosity: "quiet", "normal", "verbose"
+  verbosity: "normal"
+
+# Advanced
+advanced:
+  # Custom headers
+  headers: {}
+
+  # Cookies file path
+  cookies_file: ""
+
+  # JavaScript execution delay (ms)
+  js_delay: 1000
+
+  # Screenshot on error (for debugging)
+  screenshot_on_error: false
