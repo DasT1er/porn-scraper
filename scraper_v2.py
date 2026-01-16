@@ -65,7 +65,7 @@ class GalleryDetector:
 
     def detect_gallery_images_html(self, html: str, base_url: str) -> List[str]:
         """Detect all gallery images from HTML (works with both Requests and Selenium)"""
-        soup = BeautifulSoup(html, 'lxml')
+        soup = BeautifulSoup(html, 'html.parser')
 
         # Method 1: Try to find gallery container
         gallery_container = self._find_gallery_container(soup)
@@ -512,7 +512,7 @@ class HybridScraper:
 
                 # Check for next page
                 if self.config['detection'].get('detect_pagination', True):
-                    soup = BeautifulSoup(response.text, 'lxml')
+                    soup = BeautifulSoup(response.text, 'html.parser')
                     next_url = self.detector.detect_next_page(soup, current_url)
 
                     if next_url and next_url != current_url:
@@ -573,7 +573,7 @@ class HybridScraper:
 
                 # Check for next page
                 if self.config['detection'].get('detect_pagination', True):
-                    soup = BeautifulSoup(page_source, 'lxml')
+                    soup = BeautifulSoup(page_source, 'html.parser')
                     next_url = self.detector.detect_next_page(soup, current_url)
 
                     if next_url and next_url != current_url:

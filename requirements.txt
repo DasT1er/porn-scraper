@@ -1,7 +1,8 @@
 # Web scraping
 beautifulsoup4==4.12.3
-lxml==5.1.0
 requests==2.31.0
+# lxml==5.1.0  # Optional - commented out for Windows compatibility
+# BeautifulSoup will use html.parser instead (built-in, no compilation needed)
 
 # Browser automation (for JavaScript-heavy sites)
 selenium==4.16.0
