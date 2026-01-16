@@ -259,15 +259,19 @@ class InteractiveScraper:
         return questionary.select(
             "Select scraping mode:",
             choices=[
-                "⚡ Auto (Fast → Browser fallback)",
-                "🚀 Light Mode (Fast, simple sites only)",
-                "🌐 Browser Mode (Slower, works everywhere)"
+                "🌐 Browser Mode (Works everywhere) (Recommended)",
+                "⚡ Auto (Try fast first, then Browser)",
+                "🚀 Light Mode (Fast, but limited)"
             ],
-            style=custom_style
+            style=custom_style,
+            default="🌐 Browser Mode (Works everywhere) (Recommended)"
         ).ask()
 
     def mode_to_string(self, mode_choice: str) -> str:
         """Convert mode choice to mode string"""
+        if not mode_choice:  # Handle None or empty
+            return "browser"  # Default to browser if no choice
+
         if "Auto" in mode_choice:
             return "auto"
         elif "Light" in mode_choice:
@@ -287,10 +291,18 @@ class InteractiveScraper:
             return
 
         mode_choice = self.get_scrape_mode()
+        if not mode_choice:  # User cancelled
+            return
+
         mode = self.mode_to_string(mode_choice)
 
         console.print()
-        asyncio.run(self.scraper.scrape_gallery(url, mode=mode))
+        try:
+            asyncio.run(self.scraper.scrape_gallery(url, mode=mode))
+        except Exception as e:
+            console.print(f"\n[red]✗ Error: {e}[/red]")
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
         console.print("\n[green]✓ Gallery scraping complete![/green]\n")
         input("Press Enter to continue...")
@@ -352,6 +364,9 @@ class InteractiveScraper:
             return
 
         mode_choice = self.get_scrape_mode()
+        if not mode_choice:  # User cancelled
+            return
+
         mode = self.mode_to_string(mode_choice)
 
         console.print()
@@ -361,9 +376,19 @@ class InteractiveScraper:
             console.print(f"\n[bold cyan]═══ Gallery {i}/{len(gallery_links)} ═══[/bold cyan]\n")
             try:
                 asyncio.run(self.scraper.scrape_gallery(url, mode=mode))
+            except KeyboardInterrupt:
+                console.print(f"\n[yellow]⚠ Scraping cancelled by user[/yellow]")
+                break
             except Exception as e:
-                console.print(f"[red]✗ Error: {e}[/red]")
-                continue
+                console.print(f"[red]✗ Error scraping gallery: {e}[/red]")
+                # Ask if user wants to continue
+                should_continue = questionary.confirm(
+                    "Continue with next gallery?",
+                    default=True,
+                    style=custom_style
+                ).ask()
+                if not should_continue:
+                    break
 
         console.print("\n[bold green]✨ Category scraping complete![/bold green]\n")
         input("Press Enter to continue...")
