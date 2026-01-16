@@ -137,11 +137,16 @@ class CategoryDetector:
 
     def _fetch_with_browser(self, url: str):
         """Fetch page using Selenium browser"""
-        from selenium import webdriver
-        from selenium.webdriver.chrome.service import Service
-        from selenium.webdriver.chrome.options import Options
-        from webdriver_manager.chrome import ChromeDriverManager
-        import time
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.chrome.service import Service
+            from selenium.webdriver.chrome.options import Options
+            from webdriver_manager.chrome import ChromeDriverManager
+            import time
+        except ImportError as e:
+            console.print(f"[red]✗ Selenium import error: {e}[/red]")
+            console.print(f"[yellow]Please install: pip install selenium webdriver-manager[/yellow]")
+            return None
 
         console.print(f"[cyan]🌐 Using Browser Mode for category scan...[/cyan]")
 
@@ -160,9 +165,19 @@ class CategoryDetector:
 
         driver = None
         try:
-            # Initialize driver
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
+            # Initialize driver with better error handling
+            try:
+                console.print(f"[dim]Initializing Chrome driver...[/dim]")
+                service = Service(ChromeDriverManager().install())
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+            except Exception as driver_error:
+                console.print(f"[red]✗ ChromeDriver initialization failed[/red]")
+                console.print(f"[yellow]💡 This site requires Browser mode, but Chrome/ChromeDriver setup failed.[/yellow]")
+                console.print(f"[yellow]   Possible solutions:[/yellow]")
+                console.print(f"[yellow]   1. Install Google Chrome if not installed[/yellow]")
+                console.print(f"[yellow]   2. Update webdriver-manager: pip install --upgrade webdriver-manager[/yellow]")
+                console.print(f"[yellow]   3. Try a different site (e.g., multporn.net)[/yellow]")
+                return None
 
             # Execute script to hide webdriver property
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -195,8 +210,6 @@ class CategoryDetector:
 
         except Exception as e:
             console.print(f"[red]✗ Browser error: {e}[/red]")
-            import traceback
-            console.print(f"[dim]{traceback.format_exc()}[/dim]")
             return None
         finally:
             if driver:
