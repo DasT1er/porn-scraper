@@ -358,6 +358,12 @@ class InteractiveScraper:
             input("Press Enter to continue...")
             return
 
+        # Extract category name from URL for folder organization
+        category_name = self._extract_category_name(category_url)
+        base_output_dir = Path(self.scraper.config['download']['output_dir']) / category_name
+
+        console.print(f"[dim]📁 Category folder: {base_output_dir}[/dim]\n")
+
         # Show summary
         table = Table(title="Found Galleries", box=box.ROUNDED, border_style="cyan")
         table.add_column("Nr.", style="cyan", width=6)
@@ -394,7 +400,7 @@ class InteractiveScraper:
         for i, url in enumerate(gallery_links, 1):
             console.print(f"\n[bold cyan]═══ Gallery {i}/{len(gallery_links)} ═══[/bold cyan]\n")
             try:
-                asyncio.run(self.scraper.scrape_gallery(url, mode=mode))
+                asyncio.run(self.scraper.scrape_gallery(url, output_dir=base_output_dir, mode=mode))
             except KeyboardInterrupt:
                 console.print(f"\n[yellow]⚠ Scraping cancelled by user[/yellow]")
                 break
@@ -411,6 +417,37 @@ class InteractiveScraper:
 
         console.print("\n[bold green]✨ Category scraping complete![/bold green]\n")
         input("Press Enter to continue...")
+
+    def _extract_category_name(self, category_url: str) -> str:
+        """Extract category name from URL for folder naming"""
+        from urllib.parse import urlparse
+
+        # Parse URL
+        parsed = urlparse(category_url)
+        path = parsed.path.strip('/')
+
+        # Remove query parameters
+        if '?' in path:
+            path = path.split('?')[0]
+
+        # Get last meaningful part of path
+        # E.g., /comics/hotel_transylvania_porn -> hotel_transylvania_porn
+        #       /comics -> comics
+        parts = [p for p in path.split('/') if p]
+
+        if len(parts) >= 2:
+            # Use last part if it looks like a category (not just 'comics')
+            category = parts[-1]
+        elif len(parts) == 1:
+            category = parts[0]
+        else:
+            # Fallback to domain name
+            category = parsed.netloc.replace('.', '_')
+
+        # Clean up category name
+        category = category.replace('-', '_')
+
+        return category
 
     def batch_scrape(self):
         """Batch scrape from file"""
