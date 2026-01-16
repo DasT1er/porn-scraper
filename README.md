@@ -4,6 +4,8 @@ Ein intelligenter, automatischer Scraper für Bildergalerien und Comics mit **Hy
 
 ## ✨ Features
 
+- 🎯 **Interaktives Terminal-UI** - Schönes Menü mit Pfeiltasten-Navigation (NEU!)
+- 📁 **Auto-Kategorie-Scraper** - Scraped ganze Kategorien automatisch (NEU!)
 - 🤖 **Automatische Galerie-Erkennung** - Findet Galerien ohne manuelle Konfiguration
 - ⚡ **Hybrid-Modus** - Versucht erst schnelle Methode, dann Browser wenn nötig
 - 🎨 **Schönes Rich UI** - Farben, Fortschrittsbalken, Live-Statistiken
@@ -26,7 +28,54 @@ pip install -r requirements.txt
 
 **Das war's!** Keine Browser-Installation nötig - `webdriver-manager` macht das automatisch!
 
-## 📖 Verwendung
+## 🎯 Quick Start - Interaktives UI (Empfohlen!)
+
+### NEU: Schönes Terminal-Interface! ✨
+
+```bash
+python scraper_ui.py
+```
+
+**Das öffnet ein interaktives Menü mit:**
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   🎯  INTELLIGENT GALLERY SCRAPER V2 - INTERACTIVE UI  🎯   ║
+║                                                              ║
+║              Beautiful • Fast • Intelligent                  ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+? What would you like to do?
+  📷 Scrape Single Gallery
+❯ 📁 Scrape Entire Category (Auto)
+  📋 Batch Scrape from File
+  ⚙️  Settings
+  ❌ Exit
+```
+
+**Features:**
+- ⬆️⬇️ **Pfeiltasten-Navigation** - Einfach und intuitiv
+- 📁 **Kategorie-Scraper** - Gib Kategorie-URL ein → alle Galerien werden automatisch gefunden und gescraped
+- 📋 **Galerie-Vorschau** - Zeigt alle gefundenen Galerien vor dem Download
+- ✅ **Bestätigung** - Du siehst was gescraped wird bevor es losgeht
+- 🎨 **Schöne Tabellen** - Übersichtliche Darstellung aller Galerien
+
+### Beispiel: Ganze Kategorie scrapen
+
+1. Starte das UI: `python scraper_ui.py`
+2. Wähle "📁 Scrape Entire Category (Auto)"
+3. Gib URL ein: `https://multporn.net/comics`
+4. Der Scraper findet automatisch alle Galerien in der Kategorie
+5. Du siehst eine Übersicht aller gefundenen Galerien
+6. Bestätige mit Enter → Alle werden automatisch gescraped!
+
+**So einfach war Scraping noch nie!** 🚀
+
+---
+
+## 📖 Verwendung (Command Line)
 
 ### Einzelne Galerie scrapen
 
@@ -90,6 +139,84 @@ python scraper_v2.py scrape "URL" --mode browser
 - Nur Selenium (echter Browser)
 - Funktioniert auf ALLEN Seiten
 - Perfekt für xlecx.one, kingcomix, allporncomic
+
+## 📁 Auto-Kategorie-Scraper (NEU!)
+
+### Ganze Kategorien automatisch scrapen
+
+Der Scraper kann jetzt automatisch **alle Galerien in einer Kategorie** finden und scrapen!
+
+**Beispiel-Kategorien:**
+```text
+https://multporn.net/comics
+https://multporn.net/comic/star-vs-the-forces-of-evil
+https://allporncomic.com/category/xxx-comics/
+https://hqporn.pics/amateurs/
+```
+
+### Wie es funktioniert:
+
+1. **Kategorie-Erkennung**
+   - Scannt die Kategorie-Seite
+   - Findet automatisch alle Galerie-Links
+   - Folgt Paginierung (mehrere Seiten)
+
+2. **Smart Link-Erkennung**
+   - Erkennt Galerie-URLs automatisch
+   - Filtert Pagination, Filter, Navigation raus
+   - Findet nur echte Galerien
+
+3. **Vorschau & Bestätigung**
+   - Zeigt alle gefundenen Galerien
+   - Du bestätigst vor dem Download
+   - Dann werden alle automatisch gescraped
+
+### Via Interactive UI (Empfohlen):
+
+```bash
+python scraper_ui.py
+# Wähle: "📁 Scrape Entire Category (Auto)"
+# Gib Kategorie-URL ein
+# Fertig! ✨
+```
+
+### Via Command Line:
+
+Nutze das Interactive UI - es ist viel einfacher! Das CLI unterstützt momentan nur einzelne Galerien und Batch-Files.
+
+### Beispiel-Output:
+
+```
+🔍 Scanning Category
+https://multporn.net/comics
+
+📄 Scanning page 1...
+✓ Found 30 galleries on page 1
+📄 Scanning page 2...
+✓ Found 28 galleries on page 2
+
+✓ Total galleries found: 58
+
+┌─────────────── Found Galleries ───────────────┐
+│ Nr.  │ Gallery URL                            │
+├──────┼────────────────────────────────────────┤
+│ 1    │ https://multporn.net/comics/comic1     │
+│ 2    │ https://multporn.net/comics/comic2     │
+│ ...  │ ... and 56 more                        │
+└──────┴────────────────────────────────────────┘
+
+? Scrape all 58 galleries? Yes
+
+═══ Gallery 1/58 ═══
+🚀 Starting Gallery Scraper...
+...
+```
+
+**Super praktisch für:**
+- Ganze Comic-Serien herunterladen
+- Alle Galerien eines Künstlers
+- Komplette Kategorien archivieren
+- Neue Uploads in deinen Lieblings-Kategorien
 
 ## ⚙️ Konfiguration
 
