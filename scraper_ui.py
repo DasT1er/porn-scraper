@@ -293,7 +293,7 @@ class InteractiveScraper:
         await self.scraper.scrape_gallery(url, mode=mode)
 
         console.print("\n[green]✓ Gallery scraping complete![/green]\n")
-        questionary.press_any_key_to_continue().ask()
+        input("Press Enter to continue...")
 
     async def scrape_category(self):
         """Scrape entire category"""
@@ -324,7 +324,7 @@ class InteractiveScraper:
 
         if not gallery_links:
             console.print("[yellow]⚠ No galleries found in category![/yellow]\n")
-            questionary.press_any_key_to_continue().ask()
+            input("Press Enter to continue...")
             return
 
         # Show summary
@@ -366,7 +366,7 @@ class InteractiveScraper:
                 continue
 
         console.print("\n[bold green]✨ Category scraping complete![/bold green]\n")
-        questionary.press_any_key_to_continue().ask()
+        input("Press Enter to continue...")
 
     async def batch_scrape(self):
         """Batch scrape from file"""
@@ -378,7 +378,7 @@ class InteractiveScraper:
 
         if not file_path or not Path(file_path).exists():
             console.print("[red]✗ File not found![/red]\n")
-            questionary.press_any_key_to_continue().ask()
+            input("Press Enter to continue...")
             return
 
         # Read URLs
@@ -393,7 +393,7 @@ class InteractiveScraper:
         await self.scraper.scrape_multiple(urls, mode=mode)
 
         console.print("\n[green]✓ Batch scraping complete![/green]\n")
-        questionary.press_any_key_to_continue().ask()
+        input("Press Enter to continue...")
 
     def show_settings(self):
         """Show settings menu"""
@@ -412,7 +412,7 @@ class InteractiveScraper:
 
         console.print(table)
         console.print()
-        questionary.press_any_key_to_continue().ask()
+        input("Press Enter to continue...")
 
     async def run(self):
         """Main run loop"""
