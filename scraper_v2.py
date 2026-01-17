@@ -639,17 +639,40 @@ class HybridScraper:
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
 
         # User agent
         user_agent = self.config['scraper'].get('user_agent')
         if user_agent:
             chrome_options.add_argument(f'user-agent={user_agent}')
 
-        # Create driver
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        # Create driver with better error handling
+        try:
+            console.print("[dim]Initializing ChromeDriver...[/dim]")
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
 
-        return driver
+            # Hide webdriver property
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
+            console.print("[green]✓ Browser ready[/green]")
+            return driver
+
+        except Exception as e:
+            console.print(f"[red]✗ Failed to initialize ChromeDriver: {e}[/red]")
+            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
+            console.print(f"[yellow]💡 ChromeDriver setup failed. Possible solutions:[/yellow]")
+            console.print(f"[yellow]   1. Install Google Chrome browser[/yellow]")
+            console.print(f"[yellow]   2. Update webdriver-manager:[/yellow]")
+            console.print(f"[yellow]      pip install --upgrade webdriver-manager selenium[/yellow]")
+            console.print(f"[yellow]   3. Try scraping sites that work with Light mode:[/yellow]")
+            console.print(f"[yellow]      - multporn.net (works great!)[/yellow]")
+            console.print(f"[yellow]      - e-hentai.org[/yellow]")
+            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
+            raise
 
     async def scrape_gallery(self, url: str, output_dir: Optional[Path] = None, mode: str = 'auto'):
         """
