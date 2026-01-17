@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 
 # Playwright - Modern browser automation (PRIMARY)
 try:
-    from playwright.sync_api import sync_playwright
+    from playwright.async_api import async_playwright
     HAS_PLAYWRIGHT = True
 except ImportError:
     HAS_PLAYWRIGHT = False
@@ -166,14 +166,25 @@ class MetadataExtractor:
         """Extract tags from page"""
         tags = []
 
-        # Common tag selectors
+        # Common tag selectors (including porn site specific ones)
         tag_selectors = [
+            # Generic
             '.tags a',
             '.tag',
             '.post-tag',
             'a[rel="tag"]',
             '.label',
             '.badge',
+            # Porn site specific
+            '.bot a',  # multporn.net uses this!
+            '.wp-tag-cloud a',  # WordPress tag cloud
+            '.tagcloud a',
+            '.entry-tags a',
+            '.post-tags a',
+            'a.tag-link',
+            # By pattern matching
+            'a[href*="/tag/"]',
+            'a[href*="/tags/"]',
         ]
 
         for selector in tag_selectors:
@@ -181,12 +192,16 @@ class MetadataExtractor:
                 elements = soup.select(selector)
                 for elem in elements:
                     tag = elem.get_text().strip()
-                    if tag and len(tag) > 1 and tag not in tags:
-                        tags.append(tag)
+                    # Clean up tag
+                    tag = tag.replace(',', '').replace(';', '')
+                    if tag and len(tag) > 1 and len(tag) < 30 and tag not in tags:
+                        # Skip if it's a number or common words
+                        if not tag.isdigit() and tag.lower() not in ['tags', 'tag', 'more', 'all']:
+                            tags.append(tag)
             except:
                 continue
 
-        return tags[:20]  # Limit to 20 tags
+        return tags[:50]  # Limit to 50 tags
 
     def _extract_artist(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract artist/author name"""
@@ -874,32 +889,32 @@ class HybridScraper:
         all_images = []
 
         try:
-            with sync_playwright() as p:
+            async with async_playwright() as p:
                 # Launch browser
-                browser = p.chromium.launch(
+                browser = await p.chromium.launch(
                     headless=self.config['scraper'].get('headless', True),
                     args=['--no-sandbox', '--disable-setuid-sandbox']
                 )
 
                 # Create context with realistic settings
-                context = browser.new_context(
+                context = await browser.new_context(
                     viewport={'width': 1920, 'height': 1080},
                     user_agent=self.config['scraper'].get('user_agent',
                         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
                 )
 
-                page = context.new_page()
+                page = await context.new_page()
 
                 # Navigate to page
                 console.print(f"[cyan]Loading page...[/cyan]")
-                page.goto(url, wait_until='networkidle', timeout=30000)
+                await page.goto(url, wait_until='networkidle', timeout=30000)
 
                 # Wait for page to load
-                page.wait_for_timeout(self.config['scraper'].get('page_load_wait', 3) * 1000)
+                await page.wait_for_timeout(self.config['scraper'].get('page_load_wait', 3) * 1000)
 
                 # Scroll to load lazy images
                 console.print(f"[cyan]Scrolling to load images...[/cyan]")
-                page.evaluate("""
+                await page.evaluate("""
                     () => {
                         return new Promise((resolve) => {
                             let totalHeight = 0;
@@ -918,7 +933,7 @@ class HybridScraper:
                 """)
 
                 # Get page HTML
-                html = page.content()
+                html = await page.content()
                 soup = BeautifulSoup(html, 'html.parser')
 
                 # Use detector to find images
@@ -938,14 +953,14 @@ class HybridScraper:
                         break
 
                     console.print(f"[cyan]Loading page {page_num}...[/cyan]")
-                    page.goto(next_url, wait_until='networkidle', timeout=30000)
-                    page.wait_for_timeout(2000)
+                    await page.goto(next_url, wait_until='networkidle', timeout=30000)
+                    await page.wait_for_timeout(2000)
 
                     # Scroll again
-                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    page.wait_for_timeout(1000)
+                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    await page.wait_for_timeout(1000)
 
-                    html = page.content()
+                    html = await page.content()
                     soup = BeautifulSoup(html, 'html.parser')
 
                     page_images = detector.detect_gallery_images(soup, next_url)
@@ -955,7 +970,7 @@ class HybridScraper:
                     url = next_url
                     page_num += 1
 
-                browser.close()
+                await browser.close()
 
         except Exception as e:
             console.print(f"[red]✗ Playwright error: {e}[/red]")
