@@ -19,24 +19,18 @@ import hashlib
 import requests
 from bs4 import BeautifulSoup
 
-# Playwright - Modern browser automation (PRIMARY)
+# Playwright - Modern browser automation (ONLY SYSTEM)
 try:
     from playwright.async_api import async_playwright
     HAS_PLAYWRIGHT = True
 except ImportError:
     HAS_PLAYWRIGHT = False
-    print("WARNING: Playwright not installed. Install: pip install playwright && playwright install chromium")
-
-# Legacy Selenium fallback (optional, for compatibility)
-try:
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    HAS_SELENIUM = True
-except ImportError:
-    HAS_SELENIUM = False
+    print("=" * 80)
+    print("ERROR: Playwright not installed!")
+    print("Install with:")
+    print("  pip install playwright")
+    print("  playwright install chromium")
+    print("=" * 80)
 
 # HTTP and async
 import httpx
@@ -770,25 +764,21 @@ class HybridScraper:
         # Use browser mode if needed
         if (mode == 'browser') or (mode == 'auto' and len(all_images) < self.config['scraper'].get('min_images_threshold', 5)):
             if mode != 'browser':
-                console.print("[cyan]🌐 Switching to Browser Mode...[/cyan]")
+                console.print("[cyan]🌐 Switching to Browser Mode (Playwright)...[/cyan]")
             else:
-                console.print("[cyan]🌐 Using Browser Mode...[/cyan]")
+                console.print("[cyan]🌐 Using Browser Mode (Playwright)...[/cyan]")
 
-            # Try Playwright first (modern), fallback to legacy Selenium
-            if HAS_PLAYWRIGHT:
-                console.print("[dim]Using Playwright (modern browser automation)[/dim]")
-                all_images = await self._scrape_with_playwright(url)
-            elif HAS_SELENIUM:
-                console.print("[dim]Using Selenium (legacy - Playwright not installed)[/dim]")
-                all_images = await self._scrape_with_selenium(url)
-            else:
-                console.print("[red]✗ No browser automation available![/red]")
+            # Use Playwright (ONLY system)
+            if not HAS_PLAYWRIGHT:
+                console.print("[red]✗ Playwright not installed![/red]")
                 console.print("[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
-                console.print("[yellow]Install Playwright (recommended):[/yellow]")
+                console.print("[yellow]Install Playwright:[/yellow]")
                 console.print("[yellow]   pip install playwright[/yellow]")
                 console.print("[yellow]   playwright install chromium[/yellow]")
                 console.print("[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
                 return
+
+            all_images = await self._scrape_with_playwright(url)
 
         if not all_images:
             console.print("[yellow]⚠ No images found![/yellow]")
@@ -898,10 +888,11 @@ class HybridScraper:
         return unique_images
 
     async def _scrape_with_playwright(self, url: str) -> List[str]:
-        """Scrape using Playwright (modern, better anti-detection)"""
+        """Scrape using Playwright (modern browser automation)"""
         if not HAS_PLAYWRIGHT:
-            console.print("[yellow]⚠ Playwright not installed, falling back to Selenium[/yellow]")
-            return await self._scrape_with_selenium(url)
+            console.print("[red]✗ Playwright not installed![/red]")
+            console.print("[yellow]Install: pip install playwright && playwright install chromium[/yellow]")
+            return []
 
         all_images = []
 
@@ -991,8 +982,12 @@ class HybridScraper:
 
         except Exception as e:
             console.print(f"[red]✗ Playwright error: {e}[/red]")
-            console.print(f"[yellow]Falling back to Selenium...[/yellow]")
-            return await self._scrape_with_selenium(url)
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
+            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
+            console.print(f"[yellow]Please report this error if it persists![/yellow]")
+            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
+            return []
 
         # Remove duplicates
         unique_images = list(dict.fromkeys(all_images))
