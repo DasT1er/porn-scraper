@@ -6,7 +6,8 @@ requests==2.31.0
 
 # Browser automation (for JavaScript-heavy sites)
 selenium==4.16.0
-webdriver-manager==4.0.1
+# webdriver-manager==4.0.1  # Replaced with undetected-chromedriver
+undetected-chromedriver>=3.5.4  # More stable, better anti-detection
 
 # HTTP requests (async)
 httpx==0.26.0

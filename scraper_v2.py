@@ -19,12 +19,23 @@ import hashlib
 import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
+
+# Import undetected-chromedriver with fallback
+try:
+    import undetected_chromedriver as uc
+    HAS_UC = True
+except ImportError:
+    HAS_UC = False
+    # Fallback to regular selenium with webdriver-manager
+    try:
+        from selenium.webdriver.chrome.service import Service
+        from webdriver_manager.chrome import ChromeDriverManager
+    except ImportError:
+        pass
 
 # HTTP and async
 import httpx
@@ -627,50 +638,92 @@ class HybridScraper:
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)
 
-    def _create_selenium_driver(self) -> webdriver.Chrome:
-        """Create a Selenium Chrome driver"""
+    def _create_selenium_driver(self):
+        """Create a Selenium Chrome driver with undetected-chromedriver"""
         console.print("[cyan]🌐 Starting browser (Selenium)...[/cyan]")
 
-        chrome_options = Options()
-
-        if self.config['scraper'].get('headless', True):
-            chrome_options.add_argument('--headless')
-
-        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-
-        # User agent
+        headless = self.config['scraper'].get('headless', True)
         user_agent = self.config['scraper'].get('user_agent')
-        if user_agent:
-            chrome_options.add_argument(f'user-agent={user_agent}')
 
-        # Create driver with better error handling
+        # Try undetected-chromedriver first (best anti-detection)
+        if HAS_UC:
+            try:
+                console.print("[dim]Using undetected-chromedriver (better anti-detection)...[/dim]")
+
+                options = uc.ChromeOptions()
+
+                # Basic options
+                if headless:
+                    options.add_argument('--headless=new')  # New headless mode
+
+                options.add_argument('--no-sandbox')
+                options.add_argument('--disable-dev-shm-usage')
+                options.add_argument('--disable-gpu')
+                options.add_argument('--window-size=1920,1080')
+
+                if user_agent:
+                    options.add_argument(f'user-agent={user_agent}')
+
+                # Create driver with undetected-chromedriver
+                driver = uc.Chrome(options=options, use_subprocess=True)
+
+                console.print("[green]✓ Browser ready (undetected mode)[/green]")
+                return driver
+
+            except Exception as e:
+                console.print(f"[yellow]⚠ undetected-chromedriver failed: {e}[/yellow]")
+                console.print(f"[yellow]Falling back to regular Selenium...[/yellow]")
+        else:
+            console.print("[dim]undetected-chromedriver not installed, using regular Selenium[/dim]")
+
+        # Fallback to regular Selenium
         try:
-            console.print("[dim]Initializing ChromeDriver...[/dim]")
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
+            console.print("[dim]Initializing regular ChromeDriver...[/dim]")
+
+            chrome_options = Options()
+
+            if headless:
+                chrome_options.add_argument('--headless=new')
+
+            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
+
+            if user_agent:
+                chrome_options.add_argument(f'user-agent={user_agent}')
+
+            # Try to create driver
+            try:
+                from selenium.webdriver.chrome.service import Service
+                from webdriver_manager.chrome import ChromeDriverManager
+                service = Service(ChromeDriverManager().install())
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+            except Exception:
+                # Last resort: try without webdriver-manager
+                driver = webdriver.Chrome(options=chrome_options)
 
             # Hide webdriver property
-            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            try:
+                driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            except:
+                pass
 
-            console.print("[green]✓ Browser ready[/green]")
+            console.print("[green]✓ Browser ready (regular mode)[/green]")
             return driver
 
         except Exception as e:
             console.print(f"[red]✗ Failed to initialize ChromeDriver: {e}[/red]")
             console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
-            console.print(f"[yellow]💡 ChromeDriver setup failed. Possible solutions:[/yellow]")
-            console.print(f"[yellow]   1. Install Google Chrome browser[/yellow]")
-            console.print(f"[yellow]   2. Update webdriver-manager:[/yellow]")
-            console.print(f"[yellow]      pip install --upgrade webdriver-manager selenium[/yellow]")
-            console.print(f"[yellow]   3. Try scraping sites that work with Light mode:[/yellow]")
-            console.print(f"[yellow]      - multporn.net (works great!)[/yellow]")
-            console.print(f"[yellow]      - e-hentai.org[/yellow]")
+            console.print(f"[yellow]💡 ChromeDriver setup failed. Solutions:[/yellow]")
+            console.print(f"[yellow]   1. Install undetected-chromedriver:[/yellow]")
+            console.print(f"[yellow]      pip install undetected-chromedriver[/yellow]")
+            console.print(f"[yellow]   2. Make sure Google Chrome is installed[/yellow]")
+            console.print(f"[yellow]   3. Try sites that work with Light mode:[/yellow]")
+            console.print(f"[yellow]      - multporn.net (works perfectly!)[/yellow]")
             console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
             raise
 

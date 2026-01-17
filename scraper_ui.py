@@ -136,73 +136,97 @@ class CategoryDetector:
         return unique_galleries
 
     def _fetch_with_browser(self, url: str):
-        """Fetch page using Selenium browser"""
+        """Fetch page using Selenium browser with undetected-chromedriver"""
+        import time
+
+        # Try to import undetected-chromedriver first
         try:
-            from selenium import webdriver
-            from selenium.webdriver.chrome.service import Service
-            from selenium.webdriver.chrome.options import Options
-            from webdriver_manager.chrome import ChromeDriverManager
-            import time
-        except ImportError as e:
-            console.print(f"[red]✗ Selenium import error: {e}[/red]")
-            console.print(f"[yellow]Please install: pip install selenium webdriver-manager[/yellow]")
-            return None
+            import undetected_chromedriver as uc
+            has_uc = True
+        except ImportError:
+            has_uc = False
+            try:
+                from selenium import webdriver
+                from selenium.webdriver.chrome.options import Options
+            except ImportError as e:
+                console.print(f"[red]✗ Selenium not installed: {e}[/red]")
+                console.print(f"[yellow]Install: pip install undetected-chromedriver[/yellow]")
+                return None
 
         console.print(f"[cyan]🌐 Using Browser Mode for category scan...[/cyan]")
 
-        # Setup Chrome options with better anti-detection
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_argument('--disable-infobars')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-        chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-
         driver = None
         try:
-            # Initialize driver with better error handling
-            try:
-                console.print(f"[dim]Initializing Chrome driver...[/dim]")
-                service = Service(ChromeDriverManager().install())
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-            except Exception as driver_error:
-                console.print(f"[red]✗ ChromeDriver initialization failed[/red]")
-                console.print(f"[yellow]💡 This site requires Browser mode, but Chrome/ChromeDriver setup failed.[/yellow]")
-                console.print(f"[yellow]   Possible solutions:[/yellow]")
-                console.print(f"[yellow]   1. Install Google Chrome if not installed[/yellow]")
-                console.print(f"[yellow]   2. Update webdriver-manager: pip install --upgrade webdriver-manager[/yellow]")
-                console.print(f"[yellow]   3. Try a different site (e.g., multporn.net)[/yellow]")
-                return None
+            # Try undetected-chromedriver first
+            if has_uc:
+                try:
+                    console.print(f"[dim]Using undetected-chromedriver...[/dim]")
 
-            # Execute script to hide webdriver property
-            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                    options = uc.ChromeOptions()
+                    options.add_argument('--headless=new')
+                    options.add_argument('--no-sandbox')
+                    options.add_argument('--disable-dev-shm-usage')
+                    options.add_argument('--disable-gpu')
+                    options.add_argument('--window-size=1920,1080')
+
+                    driver = uc.Chrome(options=options, use_subprocess=True)
+                    console.print(f"[green]✓ Browser initialized (undetected mode)[/green]")
+
+                except Exception as e:
+                    console.print(f"[yellow]⚠ undetected-chromedriver failed: {e}[/yellow]")
+                    console.print(f"[yellow]Trying regular Selenium...[/yellow]")
+                    driver = None
+
+            # Fallback to regular Selenium
+            if driver is None:
+                console.print(f"[dim]Using regular Selenium...[/dim]")
+
+                chrome_options = Options()
+                chrome_options.add_argument('--headless=new')
+                chrome_options.add_argument('--no-sandbox')
+                chrome_options.add_argument('--disable-dev-shm-usage')
+                chrome_options.add_argument('--disable-gpu')
+                chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+                chrome_options.add_argument('--window-size=1920,1080')
+                chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+                chrome_options.add_experimental_option('useAutomationExtension', False)
+                chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+
+                # Try multiple methods to create driver
+                try:
+                    from selenium.webdriver.chrome.service import Service
+                    from webdriver_manager.chrome import ChromeDriverManager
+                    service = Service(ChromeDriverManager().install())
+                    driver = webdriver.Chrome(service=service, options=chrome_options)
+                except:
+                    # Last resort: try without webdriver-manager
+                    driver = webdriver.Chrome(options=chrome_options)
+
+                # Hide webdriver property
+                try:
+                    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                except:
+                    pass
+
+                console.print(f"[green]✓ Browser initialized (regular mode)[/green]")
 
             # Load page
             console.print(f"[dim]Loading: {url}[/dim]")
             driver.get(url)
-
-            # Wait longer for page to load
             time.sleep(5)
 
             # Get page source
             html = driver.page_source
 
-            # Check if we got actual content
             if not html or len(html) < 100:
-                console.print(f"[yellow]⚠ Page returned empty or very short content[/yellow]")
+                console.print(f"[yellow]⚠ Page returned empty content[/yellow]")
                 return None
 
             # Parse with BeautifulSoup
             soup = BeautifulSoup(html, 'html.parser')
 
-            # Verify soup has content
             if not soup or not soup.find():
-                console.print(f"[yellow]⚠ Failed to parse HTML content[/yellow]")
+                console.print(f"[yellow]⚠ Failed to parse HTML[/yellow]")
                 return None
 
             console.print(f"[green]✓ Page loaded successfully[/green]")
@@ -210,6 +234,12 @@ class CategoryDetector:
 
         except Exception as e:
             console.print(f"[red]✗ Browser error: {e}[/red]")
+            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
+            console.print(f"[yellow]💡 Solutions:[/yellow]")
+            console.print(f"[yellow]   1. pip install undetected-chromedriver[/yellow]")
+            console.print(f"[yellow]   2. Make sure Chrome is installed[/yellow]")
+            console.print(f"[yellow]   3. Try multporn.net (works great!)[/yellow]")
+            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
             return None
         finally:
             if driver:
