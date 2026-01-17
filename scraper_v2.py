@@ -166,7 +166,24 @@ class MetadataExtractor:
         """Extract tags from page"""
         tags = []
 
-        # Common tag selectors (including porn site specific ones)
+        # Strategy 1: Find links with /category/ or /tag/ URLs (multporn.net style)
+        try:
+            all_links = soup.find_all('a', href=True)
+            for link in all_links:
+                href = link.get('href', '')
+                # Check for category/tag URLs
+                if '/category/' in href or '/tag/' in href or '/user_tags/' in href:
+                    tag = link.get_text().strip()
+                    # Clean up tag
+                    tag = tag.replace(',', '').replace(';', '').replace('#', '')
+                    if tag and len(tag) > 1 and len(tag) < 30 and tag not in tags:
+                        # Skip if it's a number or common words
+                        if not tag.isdigit() and tag.lower() not in ['tags', 'tag', 'more', 'all', 'category', 'categories']:
+                            tags.append(tag)
+        except:
+            pass
+
+        # Strategy 2: Common tag selectors (including porn site specific ones)
         tag_selectors = [
             # Generic
             '.tags a',
@@ -193,10 +210,10 @@ class MetadataExtractor:
                 for elem in elements:
                     tag = elem.get_text().strip()
                     # Clean up tag
-                    tag = tag.replace(',', '').replace(';', '')
+                    tag = tag.replace(',', '').replace(';', '').replace('#', '')
                     if tag and len(tag) > 1 and len(tag) < 30 and tag not in tags:
                         # Skip if it's a number or common words
-                        if not tag.isdigit() and tag.lower() not in ['tags', 'tag', 'more', 'all']:
+                        if not tag.isdigit() and tag.lower() not in ['tags', 'tag', 'more', 'all', 'category', 'categories']:
                             tags.append(tag)
             except:
                 continue
@@ -937,7 +954,7 @@ class HybridScraper:
                 soup = BeautifulSoup(html, 'html.parser')
 
                 # Use detector to find images
-                detector = GalleryDetector()
+                detector = GalleryDetector(self.config)
                 all_images = detector.detect_gallery_images(soup, url)
 
                 console.print(f"[green]✓ Found {len(all_images)} images on page 1[/green]")
