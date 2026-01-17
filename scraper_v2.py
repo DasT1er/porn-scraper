@@ -2,7 +2,7 @@
 """
 Intelligent Adult Content Gallery Scraper - Hybrid Version
 Automatically detects and downloads image galleries and comics
-Uses Requests for simple pages, Selenium for JavaScript-heavy pages
+Uses Requests for simple pages, Playwright for JavaScript-heavy pages
 """
 
 import asyncio
@@ -349,7 +349,7 @@ class GalleryDetector:
         self.detection_config = config.get('detection', {})
 
     def detect_gallery_images_html(self, html: str, base_url: str) -> List[str]:
-        """Detect all gallery images from HTML (works with both Requests and Selenium)"""
+        """Detect all gallery images from HTML (works with both Requests and Playwright)"""
         soup = BeautifulSoup(html, 'html.parser')
 
         # Method 1: Try to find gallery container
@@ -367,6 +367,12 @@ class GalleryDetector:
         unique_images = list(dict.fromkeys(images))
 
         return unique_images
+
+    def detect_gallery_images(self, soup: BeautifulSoup, base_url: str) -> List[str]:
+        """Detect all gallery images from BeautifulSoup object (wrapper for Playwright compatibility)"""
+        # Convert soup to HTML string and use existing method
+        html = str(soup)
+        return self.detect_gallery_images_html(html, base_url)
 
     def _find_gallery_container(self, soup: BeautifulSoup) -> Optional[any]:
         """Find the main gallery container using heuristics"""
@@ -651,71 +657,18 @@ class ImageDownloader:
 
 
 class HybridScraper:
-    """Hybrid scraper that tries Requests first, falls back to Selenium"""
+    """Hybrid scraper that tries Requests first, falls back to Playwright"""
 
     def __init__(self, config_path: str = 'config.yaml'):
         self.config = self._load_config(config_path)
         self.detector = GalleryDetector(self.config)
         self.downloader = ImageDownloader(self.config)
         self.metadata_extractor = MetadataExtractor(self.config)
-        self.driver = None
 
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from YAML file"""
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)
-
-    def _create_selenium_driver(self):
-        """Create a Selenium Chrome driver (legacy fallback)"""
-        console.print("[cyan]🌐 Starting browser (Selenium - legacy)...[/cyan]")
-        console.print("[yellow]⚠ Using legacy Selenium. Consider using Playwright instead![/yellow]")
-
-        if not HAS_SELENIUM:
-            console.print(f"[red]✗ Selenium not installed![/red]")
-            raise Exception("Selenium not available")
-
-        headless = self.config['scraper'].get('headless', True)
-        user_agent = self.config['scraper'].get('user_agent')
-
-        try:
-            console.print("[dim]Initializing ChromeDriver...[/dim]")
-
-            chrome_options = Options()
-
-            if headless:
-                chrome_options.add_argument('--headless=new')
-
-            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-gpu')
-            chrome_options.add_argument('--window-size=1920,1080')
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            chrome_options.add_experimental_option('useAutomationExtension', False)
-
-            if user_agent:
-                chrome_options.add_argument(f'user-agent={user_agent}')
-
-            # Try to create driver
-            driver = webdriver.Chrome(options=chrome_options)
-
-            # Hide webdriver property
-            try:
-                driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            except:
-                pass
-
-            console.print("[green]✓ Browser ready[/green]")
-            return driver
-
-        except Exception as e:
-            console.print(f"[red]✗ Failed to initialize ChromeDriver: {e}[/red]")
-            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
-            console.print(f"[yellow]💡 Playwright is recommended! Install:[/yellow]")
-            console.print(f"[yellow]   pip install playwright[/yellow]")
-            console.print(f"[yellow]   playwright install chromium[/yellow]")
-            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
-            raise
 
     async def scrape_gallery(self, url: str, output_dir: Optional[Path] = None, mode: str = 'auto'):
         """
@@ -724,7 +677,7 @@ class HybridScraper:
         Args:
             url: Gallery URL
             output_dir: Output directory
-            mode: 'auto' (try requests first), 'light' (requests only), 'browser' (selenium only)
+            mode: 'auto' (try requests first), 'light' (requests only), 'browser' (playwright only)
         """
         console.print(Panel.fit(
             f"[bold cyan]🚀 Starting Gallery Scraper[/bold cyan]\n[white]URL: {url}[/white]\n[yellow]Mode: {mode}[/yellow]",
@@ -993,67 +946,6 @@ class HybridScraper:
         unique_images = list(dict.fromkeys(all_images))
         return unique_images
 
-    async def _scrape_with_selenium(self, url: str) -> List[str]:
-        """Scrape using Selenium (slower, supports JS)"""
-        all_images = []
-
-        try:
-            self.driver = self._create_selenium_driver()
-
-            visited_urls = set()
-            current_url = url
-            page_num = 1
-            max_pages = self.config['detection'].get('max_pages', 100)
-
-            while current_url and page_num <= max_pages:
-                if current_url in visited_urls:
-                    break
-
-                visited_urls.add(current_url)
-
-                if page_num > 1:
-                    console.print(f"[cyan]📄 Loading page {page_num}...[/cyan]")
-
-                # Load page
-                self.driver.get(current_url)
-
-                # Wait for images to load
-                wait_time = self.config['scraper'].get('page_load_wait', 3)
-                time.sleep(wait_time)
-
-                # Scroll to load lazy images
-                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(1)
-
-                # Get page source
-                console.print(f"[cyan]🔍 Analyzing page structure...[/cyan]")
-                page_source = self.driver.page_source
-                images = self.detector.detect_gallery_images_html(page_source, current_url)
-
-                console.print(f"[green]✓ Found {len(images)} images on page {page_num}[/green]")
-                all_images.extend(images)
-
-                # Check for next page
-                if self.config['detection'].get('detect_pagination', True):
-                    soup = BeautifulSoup(page_source, 'html.parser')
-                    next_url = self.detector.detect_next_page(soup, current_url)
-
-                    if next_url and next_url != current_url:
-                        current_url = next_url
-                        page_num += 1
-                    else:
-                        break
-                else:
-                    break
-
-        finally:
-            if self.driver:
-                self.driver.quit()
-
-        # Remove duplicates
-        unique_images = list(dict.fromkeys(all_images))
-        return unique_images
-
     def _generate_folder_name(self, url: str) -> str:
         """Generate folder name from URL"""
         # Use URL hash for unique folder name
@@ -1118,7 +1010,7 @@ def cli():
 @click.option('--output', '-o', help='Output directory', type=click.Path())
 @click.option('--config', '-c', default='config.yaml', help='Config file path')
 @click.option('--mode', '-m', type=click.Choice(['auto', 'light', 'browser']), default='auto',
-              help='Scraping mode: auto (try light first), light (requests only), browser (selenium only)')
+              help='Scraping mode: auto (try light first), light (requests only), browser (playwright only)')
 def scrape(url: str, output: Optional[str], config: str, mode: str):
     """Scrape a single gallery from URL"""
     scraper = HybridScraper(config)
@@ -1130,7 +1022,7 @@ def scrape(url: str, output: Optional[str], config: str, mode: str):
 @click.argument('file', type=click.Path(exists=True))
 @click.option('--config', '-c', default='config.yaml', help='Config file path')
 @click.option('--mode', '-m', type=click.Choice(['auto', 'light', 'browser']), default='auto',
-              help='Scraping mode: auto (try light first), light (requests only), browser (selenium only)')
+              help='Scraping mode: auto (try light first), light (requests only), browser (playwright only)')
 def batch(file: str, config: str, mode: str):
     """Scrape multiple galleries from a file (one URL per line)"""
     with open(file, 'r') as f:
