@@ -18,13 +18,26 @@ import hashlib
 # Web scraping
 import requests
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
-# Import undetected-chromedriver with fallback
+# Try to import Playwright (preferred)
+try:
+    from playwright.sync_api import sync_playwright
+    HAS_PLAYWRIGHT = True
+except ImportError:
+    HAS_PLAYWRIGHT = False
+
+# Fallback to Selenium
+try:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    HAS_SELENIUM = True
+except ImportError:
+    HAS_SELENIUM = False
+
+# Import undetected-chromedriver as fallback
 try:
     import undetected_chromedriver as uc
     HAS_UC = True
@@ -774,11 +787,21 @@ class HybridScraper:
         # Use browser mode if needed
         if (mode == 'browser') or (mode == 'auto' and len(all_images) < self.config['scraper'].get('min_images_threshold', 5)):
             if mode != 'browser':
-                console.print("[cyan]🌐 Switching to Browser Mode (Selenium)...[/cyan]")
+                console.print("[cyan]🌐 Switching to Browser Mode...[/cyan]")
             else:
-                console.print("[cyan]🌐 Using Browser Mode (Selenium)...[/cyan]")
+                console.print("[cyan]🌐 Using Browser Mode...[/cyan]")
 
-            all_images = await self._scrape_with_selenium(url)
+            # Try Playwright first (better), fallback to Selenium
+            if HAS_PLAYWRIGHT:
+                console.print("[dim]Using Playwright (modern browser automation)[/dim]")
+                all_images = await self._scrape_with_playwright(url)
+            elif HAS_SELENIUM or HAS_UC:
+                console.print("[dim]Using Selenium (Playwright not installed)[/dim]")
+                all_images = await self._scrape_with_selenium(url)
+            else:
+                console.print("[red]✗ No browser automation available![/red]")
+                console.print("[yellow]Install: pip install playwright && playwright install chromium[/yellow]")
+                return
 
         if not all_images:
             console.print("[yellow]⚠ No images found![/yellow]")
@@ -882,6 +905,107 @@ class HybridScraper:
             except Exception as e:
                 console.print(f"[red]✗ Error on page {page_num}: {e}[/red]")
                 break
+
+        # Remove duplicates
+        unique_images = list(dict.fromkeys(all_images))
+        return unique_images
+
+    async def _scrape_with_playwright(self, url: str) -> List[str]:
+        """Scrape using Playwright (modern, better anti-detection)"""
+        if not HAS_PLAYWRIGHT:
+            console.print("[yellow]⚠ Playwright not installed, falling back to Selenium[/yellow]")
+            return await self._scrape_with_selenium(url)
+
+        all_images = []
+
+        try:
+            with sync_playwright() as p:
+                # Launch browser
+                browser = p.chromium.launch(
+                    headless=self.config['scraper'].get('headless', True),
+                    args=['--no-sandbox', '--disable-setuid-sandbox']
+                )
+
+                # Create context with realistic settings
+                context = browser.new_context(
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent=self.config['scraper'].get('user_agent',
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+                )
+
+                page = context.new_page()
+
+                # Navigate to page
+                console.print(f"[cyan]Loading page...[/cyan]")
+                page.goto(url, wait_until='networkidle', timeout=30000)
+
+                # Wait for page to load
+                page.wait_for_timeout(self.config['scraper'].get('page_load_wait', 3) * 1000)
+
+                # Scroll to load lazy images
+                console.print(f"[cyan]Scrolling to load images...[/cyan]")
+                page.evaluate("""
+                    () => {
+                        return new Promise((resolve) => {
+                            let totalHeight = 0;
+                            const distance = 100;
+                            const timer = setInterval(() => {
+                                const scrollHeight = document.body.scrollHeight;
+                                window.scrollBy(0, distance);
+                                totalHeight += distance;
+                                if (totalHeight >= scrollHeight) {
+                                    clearInterval(timer);
+                                    resolve();
+                                }
+                            }, 100);
+                        });
+                    }
+                """)
+
+                # Get page HTML
+                html = page.content()
+                soup = BeautifulSoup(html, 'html.parser')
+
+                # Use detector to find images
+                detector = GalleryDetector()
+                all_images = detector.detect_gallery_images(soup, url)
+
+                console.print(f"[green]✓ Found {len(all_images)} images on page 1[/green]")
+
+                # Check for pagination
+                page_num = 2
+                max_pages = self.config['detection'].get('max_pages', 100)
+
+                while page_num <= max_pages:
+                    next_url = detector.detect_next_page(soup, url)
+
+                    if not next_url or next_url == url:
+                        break
+
+                    console.print(f"[cyan]Loading page {page_num}...[/cyan]")
+                    page.goto(next_url, wait_until='networkidle', timeout=30000)
+                    page.wait_for_timeout(2000)
+
+                    # Scroll again
+                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    page.wait_for_timeout(1000)
+
+                    html = page.content()
+                    soup = BeautifulSoup(html, 'html.parser')
+
+                    page_images = detector.detect_gallery_images(soup, next_url)
+                    console.print(f"[green]✓ Found {len(page_images)} images on page {page_num}[/green]")
+
+                    all_images.extend(page_images)
+                    url = next_url
+                    page_num += 1
+
+                browser.close()
+
+        except Exception as e:
+            console.print(f"[red]✗ Playwright error: {e}[/red]")
+            console.print(f"[yellow]Falling back to Selenium...[/yellow]")
+            return await self._scrape_with_selenium(url)
 
         # Remove duplicates
         unique_images = list(dict.fromkeys(all_images))

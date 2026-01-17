@@ -136,10 +136,17 @@ class CategoryDetector:
         return unique_galleries
 
     def _fetch_with_browser(self, url: str):
-        """Fetch page using Selenium browser with undetected-chromedriver"""
+        """Fetch page using Playwright or Selenium"""
         import time
 
-        # Try to import undetected-chromedriver first
+        # Try Playwright first
+        try:
+            from playwright.sync_api import sync_playwright
+            has_playwright = True
+        except ImportError:
+            has_playwright = False
+
+        # Fallback to Selenium/UC
         try:
             import undetected_chromedriver as uc
             has_uc = True
@@ -148,12 +155,55 @@ class CategoryDetector:
             try:
                 from selenium import webdriver
                 from selenium.webdriver.chrome.options import Options
-            except ImportError as e:
-                console.print(f"[red]✗ Selenium not installed: {e}[/red]")
-                console.print(f"[yellow]Install: pip install undetected-chromedriver[/yellow]")
-                return None
+            except ImportError:
+                has_uc = False
 
         console.print(f"[cyan]🌐 Using Browser Mode for category scan...[/cyan]")
+
+        # Try Playwright first (best option)
+        if has_playwright:
+            try:
+                console.print(f"[dim]Using Playwright...[/dim]")
+
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(
+                        headless=True,
+                        args=['--no-sandbox', '--disable-setuid-sandbox']
+                    )
+
+                    context = browser.new_context(
+                        viewport={'width': 1920, 'height': 1080},
+                        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    )
+
+                    page = context.new_page()
+                    console.print(f"[dim]Loading: {url}[/dim]")
+
+                    page.goto(url, wait_until='networkidle', timeout=30000)
+                    page.wait_for_timeout(5000)
+
+                    html = page.content()
+                    browser.close()
+
+                    if not html or len(html) < 100:
+                        console.print(f"[yellow]⚠ Page returned empty content[/yellow]")
+                        return None
+
+                    soup = BeautifulSoup(html, 'html.parser')
+                    console.print(f"[green]✓ Page loaded successfully (Playwright)[/green]")
+                    return soup
+
+            except Exception as e:
+                console.print(f"[yellow]⚠ Playwright failed: {e}[/yellow]")
+                console.print(f"[yellow]Trying Selenium...[/yellow]")
+
+        # Fallback to Selenium
+        if not has_uc and not has_playwright:
+            console.print(f"[red]✗ No browser automation available![/red]")
+            console.print(f"[yellow]Install: pip install playwright && playwright install chromium[/yellow]")
+            return None
+
+        console.print(f"[dim]Using Selenium...[/dim]")
 
         driver = None
         try:
