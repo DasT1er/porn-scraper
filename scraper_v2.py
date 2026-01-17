@@ -19,14 +19,15 @@ import hashlib
 import requests
 from bs4 import BeautifulSoup
 
-# Try to import Playwright (preferred)
+# Playwright - Modern browser automation (PRIMARY)
 try:
     from playwright.sync_api import sync_playwright
     HAS_PLAYWRIGHT = True
 except ImportError:
     HAS_PLAYWRIGHT = False
+    print("WARNING: Playwright not installed. Install: pip install playwright && playwright install chromium")
 
-# Fallback to Selenium
+# Legacy Selenium fallback (optional, for compatibility)
 try:
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
@@ -36,19 +37,6 @@ try:
     HAS_SELENIUM = True
 except ImportError:
     HAS_SELENIUM = False
-
-# Import undetected-chromedriver as fallback
-try:
-    import undetected_chromedriver as uc
-    HAS_UC = True
-except ImportError:
-    HAS_UC = False
-    # Fallback to regular selenium with webdriver-manager
-    try:
-        from selenium.webdriver.chrome.service import Service
-        from webdriver_manager.chrome import ChromeDriverManager
-    except ImportError:
-        pass
 
 # HTTP and async
 import httpx
@@ -652,46 +640,19 @@ class HybridScraper:
             return yaml.safe_load(f)
 
     def _create_selenium_driver(self):
-        """Create a Selenium Chrome driver with undetected-chromedriver"""
-        console.print("[cyan]🌐 Starting browser (Selenium)...[/cyan]")
+        """Create a Selenium Chrome driver (legacy fallback)"""
+        console.print("[cyan]🌐 Starting browser (Selenium - legacy)...[/cyan]")
+        console.print("[yellow]⚠ Using legacy Selenium. Consider using Playwright instead![/yellow]")
+
+        if not HAS_SELENIUM:
+            console.print(f"[red]✗ Selenium not installed![/red]")
+            raise Exception("Selenium not available")
 
         headless = self.config['scraper'].get('headless', True)
         user_agent = self.config['scraper'].get('user_agent')
 
-        # Try undetected-chromedriver first (best anti-detection)
-        if HAS_UC:
-            try:
-                console.print("[dim]Using undetected-chromedriver (better anti-detection)...[/dim]")
-
-                options = uc.ChromeOptions()
-
-                # Basic options
-                if headless:
-                    options.add_argument('--headless=new')  # New headless mode
-
-                options.add_argument('--no-sandbox')
-                options.add_argument('--disable-dev-shm-usage')
-                options.add_argument('--disable-gpu')
-                options.add_argument('--window-size=1920,1080')
-
-                if user_agent:
-                    options.add_argument(f'user-agent={user_agent}')
-
-                # Create driver with undetected-chromedriver
-                driver = uc.Chrome(options=options, use_subprocess=True)
-
-                console.print("[green]✓ Browser ready (undetected mode)[/green]")
-                return driver
-
-            except Exception as e:
-                console.print(f"[yellow]⚠ undetected-chromedriver failed: {e}[/yellow]")
-                console.print(f"[yellow]Falling back to regular Selenium...[/yellow]")
-        else:
-            console.print("[dim]undetected-chromedriver not installed, using regular Selenium[/dim]")
-
-        # Fallback to regular Selenium
         try:
-            console.print("[dim]Initializing regular ChromeDriver...[/dim]")
+            console.print("[dim]Initializing ChromeDriver...[/dim]")
 
             chrome_options = Options()
 
@@ -710,14 +671,7 @@ class HybridScraper:
                 chrome_options.add_argument(f'user-agent={user_agent}')
 
             # Try to create driver
-            try:
-                from selenium.webdriver.chrome.service import Service
-                from webdriver_manager.chrome import ChromeDriverManager
-                service = Service(ChromeDriverManager().install())
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-            except Exception:
-                # Last resort: try without webdriver-manager
-                driver = webdriver.Chrome(options=chrome_options)
+            driver = webdriver.Chrome(options=chrome_options)
 
             # Hide webdriver property
             try:
@@ -725,18 +679,15 @@ class HybridScraper:
             except:
                 pass
 
-            console.print("[green]✓ Browser ready (regular mode)[/green]")
+            console.print("[green]✓ Browser ready[/green]")
             return driver
 
         except Exception as e:
             console.print(f"[red]✗ Failed to initialize ChromeDriver: {e}[/red]")
             console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
-            console.print(f"[yellow]💡 ChromeDriver setup failed. Solutions:[/yellow]")
-            console.print(f"[yellow]   1. Install undetected-chromedriver:[/yellow]")
-            console.print(f"[yellow]      pip install undetected-chromedriver[/yellow]")
-            console.print(f"[yellow]   2. Make sure Google Chrome is installed[/yellow]")
-            console.print(f"[yellow]   3. Try sites that work with Light mode:[/yellow]")
-            console.print(f"[yellow]      - multporn.net (works perfectly!)[/yellow]")
+            console.print(f"[yellow]💡 Playwright is recommended! Install:[/yellow]")
+            console.print(f"[yellow]   pip install playwright[/yellow]")
+            console.print(f"[yellow]   playwright install chromium[/yellow]")
             console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
             raise
 
@@ -791,16 +742,20 @@ class HybridScraper:
             else:
                 console.print("[cyan]🌐 Using Browser Mode...[/cyan]")
 
-            # Try Playwright first (better), fallback to Selenium
+            # Try Playwright first (modern), fallback to legacy Selenium
             if HAS_PLAYWRIGHT:
                 console.print("[dim]Using Playwright (modern browser automation)[/dim]")
                 all_images = await self._scrape_with_playwright(url)
-            elif HAS_SELENIUM or HAS_UC:
-                console.print("[dim]Using Selenium (Playwright not installed)[/dim]")
+            elif HAS_SELENIUM:
+                console.print("[dim]Using Selenium (legacy - Playwright not installed)[/dim]")
                 all_images = await self._scrape_with_selenium(url)
             else:
                 console.print("[red]✗ No browser automation available![/red]")
-                console.print("[yellow]Install: pip install playwright && playwright install chromium[/yellow]")
+                console.print("[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
+                console.print("[yellow]Install Playwright (recommended):[/yellow]")
+                console.print("[yellow]   pip install playwright[/yellow]")
+                console.print("[yellow]   playwright install chromium[/yellow]")
+                console.print("[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
                 return
 
         if not all_images:

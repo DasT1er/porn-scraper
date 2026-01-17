@@ -136,34 +136,30 @@ class CategoryDetector:
         return unique_galleries
 
     def _fetch_with_browser(self, url: str):
-        """Fetch page using Playwright or Selenium"""
+        """Fetch page using Playwright (primary) or Selenium (fallback)"""
         import time
 
-        # Try Playwright first
+        # Try Playwright first (RECOMMENDED)
         try:
             from playwright.sync_api import sync_playwright
             has_playwright = True
         except ImportError:
             has_playwright = False
 
-        # Fallback to Selenium/UC
+        # Legacy Selenium fallback
         try:
-            import undetected_chromedriver as uc
-            has_uc = True
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options
+            has_selenium = True
         except ImportError:
-            has_uc = False
-            try:
-                from selenium import webdriver
-                from selenium.webdriver.chrome.options import Options
-            except ImportError:
-                has_uc = False
+            has_selenium = False
 
         console.print(f"[cyan]🌐 Using Browser Mode for category scan...[/cyan]")
 
-        # Try Playwright first (best option)
+        # Try Playwright first (BEST)
         if has_playwright:
             try:
-                console.print(f"[dim]Using Playwright...[/dim]")
+                console.print(f"[dim]Using Playwright (modern)[/dim]")
 
                 with sync_playwright() as p:
                     browser = p.chromium.launch(
@@ -195,70 +191,45 @@ class CategoryDetector:
 
             except Exception as e:
                 console.print(f"[yellow]⚠ Playwright failed: {e}[/yellow]")
-                console.print(f"[yellow]Trying Selenium...[/yellow]")
+                if has_selenium:
+                    console.print(f"[yellow]Trying legacy Selenium...[/yellow]")
 
-        # Fallback to Selenium
-        if not has_uc and not has_playwright:
+        # Fallback to Selenium (LEGACY)
+        if not has_selenium and not has_playwright:
             console.print(f"[red]✗ No browser automation available![/red]")
-            console.print(f"[yellow]Install: pip install playwright && playwright install chromium[/yellow]")
+            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
+            console.print(f"[yellow]Install Playwright:[/yellow]")
+            console.print(f"[yellow]   pip install playwright[/yellow]")
+            console.print(f"[yellow]   playwright install chromium[/yellow]")
+            console.print(f"[yellow]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/yellow]")
             return None
 
-        console.print(f"[dim]Using Selenium...[/dim]")
+        console.print(f"[dim]Using Selenium (legacy)...[/dim]")
+        console.print(f"[yellow]⚠ Playwright recommended! (pip install playwright && playwright install chromium)[/yellow]")
 
         driver = None
         try:
-            # Try undetected-chromedriver first
-            if has_uc:
-                try:
-                    console.print(f"[dim]Using undetected-chromedriver...[/dim]")
+            chrome_options = Options()
+            chrome_options.add_argument('--headless=new')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
+            chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
 
-                    options = uc.ChromeOptions()
-                    options.add_argument('--headless=new')
-                    options.add_argument('--no-sandbox')
-                    options.add_argument('--disable-dev-shm-usage')
-                    options.add_argument('--disable-gpu')
-                    options.add_argument('--window-size=1920,1080')
+            # Create driver
+            driver = webdriver.Chrome(options=chrome_options)
 
-                    driver = uc.Chrome(options=options, use_subprocess=True)
-                    console.print(f"[green]✓ Browser initialized (undetected mode)[/green]")
+            # Hide webdriver property
+            try:
+                driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            except:
+                pass
 
-                except Exception as e:
-                    console.print(f"[yellow]⚠ undetected-chromedriver failed: {e}[/yellow]")
-                    console.print(f"[yellow]Trying regular Selenium...[/yellow]")
-                    driver = None
-
-            # Fallback to regular Selenium
-            if driver is None:
-                console.print(f"[dim]Using regular Selenium...[/dim]")
-
-                chrome_options = Options()
-                chrome_options.add_argument('--headless=new')
-                chrome_options.add_argument('--no-sandbox')
-                chrome_options.add_argument('--disable-dev-shm-usage')
-                chrome_options.add_argument('--disable-gpu')
-                chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-                chrome_options.add_argument('--window-size=1920,1080')
-                chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-                chrome_options.add_experimental_option('useAutomationExtension', False)
-                chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-
-                # Try multiple methods to create driver
-                try:
-                    from selenium.webdriver.chrome.service import Service
-                    from webdriver_manager.chrome import ChromeDriverManager
-                    service = Service(ChromeDriverManager().install())
-                    driver = webdriver.Chrome(service=service, options=chrome_options)
-                except:
-                    # Last resort: try without webdriver-manager
-                    driver = webdriver.Chrome(options=chrome_options)
-
-                # Hide webdriver property
-                try:
-                    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-                except:
-                    pass
-
-                console.print(f"[green]✓ Browser initialized (regular mode)[/green]")
+            console.print(f"[green]✓ Browser initialized[/green]")
 
             # Load page
             console.print(f"[dim]Loading: {url}[/dim]")

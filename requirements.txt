@@ -5,12 +5,11 @@ requests==2.31.0
 # BeautifulSoup will use html.parser instead (built-in, no compilation needed)
 
 # Browser automation (for JavaScript-heavy sites)
-selenium==4.16.0
-# webdriver-manager==4.0.1  # Replaced with undetected-chromedriver
-undetected-chromedriver>=3.5.4  # More stable, better anti-detection
+# Playwright - Modern, stable browser automation (PRIMARY)
+playwright>=1.40.0
 
-# Playwright - Optional, modern browser automation (commented out - optional)
-# playwright>=1.40.0  # Uncomment if you want to use Playwright instead of Selenium
+# Selenium - Legacy fallback (optional)
+# selenium==4.16.0
 
 # HTTP requests (async)
 httpx==0.26.0
