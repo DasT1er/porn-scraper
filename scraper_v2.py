@@ -666,9 +666,78 @@ class HybridScraper:
         self.metadata_extractor = MetadataExtractor(self.config)
 
     def _load_config(self, config_path: str) -> dict:
-        """Load configuration from YAML file"""
-        with open(config_path, 'r') as f:
-            return yaml.safe_load(f)
+        """Load configuration from YAML file or use defaults"""
+        import sys
+        import os
+
+        # Default configuration (fallback if config.yaml not found)
+        default_config = {
+            'download': {
+                'output_dir': 'downloads',
+                'threads': 5,
+                'timeout': 30,
+                'retry_attempts': 3
+            },
+            'scraper': {
+                'default_mode': 'auto',
+                'min_images_threshold': 5,
+                'headless': True,
+                'page_load_wait': 3,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
+            'detection': {
+                'min_image_size': 50000,
+                'detect_pagination': True,
+                'max_pages': 100,
+                'gallery_selectors': [
+                    '.gallery', '#gallery', '.comic', '.pages',
+                    '[class*="gallery"]', '[id*="gallery"]'
+                ],
+                'exclude_selectors': [
+                    '.sidebar', '.navigation', '.menu', '.footer',
+                    '.header', '.ad', '.advertisement'
+                ]
+            },
+            'metadata': {
+                'save_metadata': True,
+                'extract_title': True,
+                'extract_tags': True,
+                'extract_artist': True
+            }
+        }
+
+        # Try to find config.yaml in different locations
+        config_locations = []
+
+        # If running as PyInstaller bundle
+        if getattr(sys, 'frozen', False):
+            # Running as .exe
+            bundle_dir = sys._MEIPASS
+            exe_dir = os.path.dirname(sys.executable)
+            config_locations = [
+                os.path.join(exe_dir, config_path),
+                os.path.join(bundle_dir, config_path),
+                config_path
+            ]
+        else:
+            # Running as script
+            config_locations = [config_path]
+
+        # Try each location
+        for location in config_locations:
+            if os.path.exists(location):
+                try:
+                    with open(location, 'r', encoding='utf-8') as f:
+                        loaded_config = yaml.safe_load(f)
+                        console.print(f"[dim]Loaded config from: {location}[/dim]")
+                        return loaded_config
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not load {location}: {e}[/yellow]")
+                    continue
+
+        # If no config found, use defaults
+        console.print("[yellow]⚠ config.yaml not found, using default configuration[/yellow]")
+        return default_config
 
     async def scrape_gallery(self, url: str, output_dir: Optional[Path] = None, mode: str = 'auto'):
         """
