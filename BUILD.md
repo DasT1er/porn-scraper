@@ -1,100 +1,52 @@
-# Build Instructions
+# Build Instructions for Windows 11
 
-## Quick Start - Automatic Build
+## Super Easy - Just 1 Step!
 
-### Option 1: Windows Users (Easiest!)
-
-Double-click `build_windows.bat` or run in Command Prompt:
-```cmd
-build_windows.bat
+### Option 1: Double-Click (Easiest!)
+```
+Double-click: build_windows.bat
 ```
 
-This will automatically:
-- Install PyInstaller if needed
-- Build both executables
-- Show you where the .exe files are
-
-### Option 2: Any Platform (Python Script)
-
-Run the universal build script:
-```bash
+### Option 2: Command Prompt
+```cmd
 python build.py
 ```
 
-Works on Windows, Linux, and Mac!
+That's it! Your .exe files will be in the `dist\` folder.
 
-### Option 3: Linux/Mac to Windows (Docker Required)
+## What You Get
 
-Build Windows .exe on Linux/Mac using Docker:
-```bash
-./build_windows_exe.sh
+After building:
+- `dist\scraper.exe` - Command-line version
+- `dist\scraper_ui.exe` - Interactive UI version
+
+## Important Notes
+
+**For Distribution:**
+Copy these 3 files to use anywhere:
+- `dist\scraper.exe`
+- `dist\scraper_ui.exe`
+- `config.yaml`
+
+**First-Time Setup:**
+Users must install Playwright browsers once:
+```cmd
+pip install playwright
+playwright install chromium
 ```
 
-This creates Windows executables in `windows_build/` folder.
+## Troubleshooting
 
-## Manual Build (Advanced)
+**"Python not found":**
+- Install Python from https://www.python.org/downloads/
+- Make sure to check "Add Python to PATH" during installation
 
-If you prefer to build manually:
+**Build fails:**
+- Run: `pip install -r requirements.txt`
+- Run: `pip install pyinstaller cffi`
+- Then try again: `python build.py`
 
-### Prerequisites
+## That's All!
 
-```bash
-pip install -r requirements.txt
-pip install pyinstaller
-```
-
-### Building on Windows (for .exe files)
-
-```bash
-pyinstaller scraper.spec
-pyinstaller scraper_ui.spec
-```
-
-The executables will be in `dist/scraper.exe` and `dist/scraper_ui.exe`.
-
-### Building on Linux/Mac
-
-```bash
-pyinstaller scraper.spec
-pyinstaller scraper_ui.spec
-```
-
-The executables will be in `dist/scraper` and `dist/scraper_ui`.
-
-### Important Notes
-
-- **Playwright**: After building, you must install Playwright browsers:
-  ```bash
-  playwright install chromium
-  ```
-  This must be done on each system where you run the executable.
-
-- **config.yaml**: The executable includes `config.yaml`, but you can override it by placing a `config.yaml` file in the same directory as the executable.
-
-- **Cross-platform**: PyInstaller builds for the current platform only. To create Windows .exe files, you must build on Windows. To create Linux executables, build on Linux.
-
-### Using the Executables
-
-**Command-line version (`scraper`):**
-```bash
-# Scrape a single gallery
-./scraper URL
-
-# With options
-./scraper URL --mode browser --output ./downloads
-```
-
-**Interactive UI version (`scraper_ui`):**
-```bash
-# Launch interactive menu
-./scraper_ui
-```
-
-### Troubleshooting
-
-If the executable fails to run:
-
-1. Make sure Playwright browsers are installed: `playwright install chromium`
-2. Check that `config.yaml` is in the same directory
-3. Run with `--help` to see available options
-4. On Linux, make sure the file is executable: `chmod +x scraper`
+No complicated steps, no Docker, no Linux scripts needed.
+Just run `build.py` and get your .exe files!

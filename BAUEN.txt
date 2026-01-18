@@ -1,18 +1,18 @@
 ═══════════════════════════════════════════════════════
-  Windows .exe Dateien bauen - SCHNELLANLEITUNG
+  Windows .exe Dateien bauen - GANZ EINFACH!
 ═══════════════════════════════════════════════════════
 
 FÜR WINDOWS 11:
 ═══════════════
 
-1. Doppelklick auf:  build_windows.bat
+Doppelklick auf:  build_windows.bat
 
    ODER
 
-2. Command Prompt öffnen und ausführen:  python build.py
+Command Prompt öffnen und ausführen:  python build.py
 
 
-Das war's! Die .exe Dateien sind dann in:  dist\
+FERTIG! Die .exe Dateien sind dann in:  dist\
 
 
 FERTIGE DATEIEN:
@@ -20,12 +20,26 @@ FERTIGE DATEIEN:
 
 ✓ dist\scraper.exe       - Kommandozeilen-Version
 ✓ dist\scraper_ui.exe    - Interaktive UI-Version
+✓ config.yaml            - Konfiguration (mitkopieren!)
 
 
-MEHR INFOS:
-═══════════
+WEITERGEBEN:
+════════════
 
-Siehe: README_WINDOWS.txt
+Kopiere diese 3 Dateien für die Weitergabe:
+- dist\scraper.exe
+- dist\scraper_ui.exe
+- config.yaml
 
 
+WICHTIG FÜR ENDNUTZER:
+══════════════════════
+
+Vor der ersten Nutzung einmalig ausführen:
+  pip install playwright
+  playwright install chromium
+
+
+═══════════════════════════════════════════════════════
+Mehr Infos: README_WINDOWS.txt oder BUILD.md
 ═══════════════════════════════════════════════════════

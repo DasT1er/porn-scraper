@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple cross-platform build script for creating Windows executables
-Works on Windows, Linux, and Mac
+Simple Windows .exe builder
+Works on Windows 11
 """
 
 import os
@@ -26,64 +26,88 @@ def check_pyinstaller():
 
 def install_pyinstaller():
     """Install PyInstaller"""
-    print("📦 Installing PyInstaller...")
+    print("Installing PyInstaller...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller", "cffi"])
-    print("✓ PyInstaller installed\n")
+    print("PyInstaller installed successfully\n")
 
-def build_exe(spec_file, name):
-    """Build executable from spec file"""
-    print(f"🔨 Building {name}...")
+def build_exe_direct(script_name, exe_name):
+    """Build executable directly without spec file"""
+    print(f"Building {exe_name}...")
+
+    # Build command
+    cmd = [
+        "pyinstaller",
+        "--onefile",
+        "--name", exe_name,
+        "--add-data", "config.yaml;.",
+        "--hidden-import", "playwright.async_api",
+        "--hidden-import", "bs4",
+        "--hidden-import", "yaml",
+        "--hidden-import", "rich",
+        "--hidden-import", "PIL",
+        "--hidden-import", "tqdm",
+    ]
+
+    # Add questionary for UI version
+    if "ui" in script_name:
+        cmd.extend(["--hidden-import", "questionary"])
+
+    cmd.append(script_name)
 
     # Run PyInstaller
-    result = subprocess.run(
-        ["pyinstaller", "--clean", spec_file],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode == 0:
-        print(f"✓ {name} built successfully\n")
+        print(f"SUCCESS: {exe_name}.exe built\n")
         return True
     else:
-        print(f"✗ Failed to build {name}")
+        print(f"ERROR building {exe_name}:")
         print(result.stderr)
         return False
 
 def main():
-    print_header("Windows .exe Builder for Porn Scraper")
+    print_header("Windows .exe Builder")
 
-    # Detect platform
-    current_os = platform.system()
-    print(f"Platform: {current_os}")
-    print(f"Python: {sys.version.split()[0]}\n")
-
-    if current_os == "Windows":
-        print("✓ Running on Windows - will create Windows .exe files")
-        exe_extension = ".exe"
+    # Check platform
+    if platform.system() != "Windows":
+        print("WARNING: You are not on Windows!")
+        print("This will create executables for your current platform only.\n")
     else:
-        print("⚠️  Running on {0} - executables will be for {0} only".format(current_os))
-        print("   To build Windows .exe, run this script on Windows")
-        print("   Or use: ./build_windows_exe.sh (requires Docker)\n")
-        exe_extension = ""
+        print("Platform: Windows")
+        print("Python:", sys.version.split()[0], "\n")
 
     # Check PyInstaller
     if not check_pyinstaller():
-        print("⚠️  PyInstaller not found")
+        print("PyInstaller not found")
         response = input("Install PyInstaller now? [Y/n]: ").strip().lower()
-        if response in ['', 'y', 'yes']:
+        if response in ['', 'y', 'yes', 'j', 'ja']:
             install_pyinstaller()
         else:
             print("Cannot continue without PyInstaller")
             return 1
     else:
-        print("✓ PyInstaller is installed\n")
+        print("PyInstaller is installed\n")
+
+    # Clean old builds
+    print("Cleaning old builds...")
+    for folder in ["build", "dist"]:
+        if os.path.exists(folder):
+            import shutil
+            shutil.rmtree(folder)
+
+    # Remove old spec files created by previous builds
+    for spec in Path(".").glob("*.spec"):
+        if spec.name not in ["scraper.spec", "scraper_ui.spec", "scraper_v2.spec"]:
+            spec.unlink()
+
+    print("Clean complete\n")
 
     # Build executables
     print_header("Building Executables")
 
     success = True
-    success = build_exe("scraper.spec", "scraper (CLI version)") and success
-    success = build_exe("scraper_ui.spec", "scraper_ui (Interactive UI)") and success
+    success = build_exe_direct("scraper_v2.py", "scraper") and success
+    success = build_exe_direct("scraper_ui.py", "scraper_ui") and success
 
     # Show results
     print_header("Build Complete!")
@@ -91,38 +115,44 @@ def main():
     if success:
         dist_path = Path("dist")
 
-        print("📁 Executables created in: dist/\n")
+        if dist_path.exists():
+            print("Executables created in: dist\\\n")
 
-        for exe_file in dist_path.glob("*"):
-            if exe_file.is_file():
-                size = exe_file.stat().st_size / (1024 * 1024)  # MB
-                print(f"   {exe_file.name:<20} {size:>6.1f} MB")
+            for exe_file in sorted(dist_path.glob("*")):
+                if exe_file.is_file():
+                    size = exe_file.stat().st_size / (1024 * 1024)
+                    print(f"   {exe_file.name:<20} {size:>6.1f} MB")
 
-        print("\n" + "=" * 70)
-        print("✅ SUCCESS!")
-        print("=" * 70)
-        print(f"\n📦 To distribute, copy these files:")
-        print(f"   - dist/scraper{exe_extension}")
-        print(f"   - dist/scraper_ui{exe_extension}")
-        print(f"   - config.yaml")
+            print("\n" + "=" * 70)
+            print("SUCCESS!")
+            print("=" * 70)
+            print("\nTo distribute, copy these files:")
+            print("   - dist\\scraper.exe")
+            print("   - dist\\scraper_ui.exe")
+            print("   - config.yaml")
 
-        if current_os == "Windows":
-            print(f"\n⚠️  Important: Users must install Playwright browsers:")
-            print(f"   pip install playwright")
-            print(f"   playwright install chromium")
+            if platform.system() == "Windows":
+                print("\nIMPORTANT: Users must install Playwright browsers once:")
+                print("   pip install playwright")
+                print("   playwright install chromium")
 
-        print("")
-        return 0
+            print("")
+            return 0
+        else:
+            print("ERROR: dist folder not created")
+            return 1
     else:
-        print("❌ Some builds failed. Check errors above.")
+        print("Some builds failed. Check errors above.")
         return 1
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\n\n❌ Build cancelled by user")
+        print("\n\nBuild cancelled by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\n\n❌ Error: {e}")
+        print(f"\n\nERROR: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
