@@ -5,7 +5,7 @@
 ╚════════════════════════════════════════════════════════════════╝
 
 
-🚀 .exe DATEIEN BAUEN
+🚀 .exe DATEI BAUEN
 ══════════════════════════════════════════════════════════════════
 
 Doppelklick auf: build_windows.bat
@@ -13,44 +13,44 @@ Doppelklick auf: build_windows.bat
 Oder Command Prompt öffnen und eingeben:
   python build.py
 
-→ Die fertigen .exe Dateien findest du dann in: dist\
+→ Die fertige .exe findest du in: dist\PornScraper.exe
+
+DU BEKOMMST EINE DATEI:
+  ✓ PornScraper.exe (30-50 MB)
 
 
 📦 NUTZUNG
 ══════════════════════════════════════════════════════════════════
 
-INTERAKTIVE VERSION (Einfach!):
-  → Doppelklick auf: dist\scraper_ui.exe
-  → Folge dem Menü
+Doppelklick auf: PornScraper.exe
 
-KOMMANDOZEILEN VERSION:
-  → Command Prompt öffnen
-  → cd zum Ordner mit scraper.exe
-  → Eingeben: scraper.exe https://multporn.net/comics/...
+→ Interaktives Menü öffnet sich
+→ Folge den Anweisungen
+→ Fertig!
 
 
-⚠️  WICHTIG - VOR DER ERSTEN NUTZUNG
+⚠️  WICHTIG - EINMALIGE EINRICHTUNG
 ══════════════════════════════════════════════════════════════════
 
-Playwright Browser installieren (nur einmal nötig):
+Vor der ersten Nutzung Playwright installieren:
 
   pip install playwright
   playwright install chromium
 
-Ohne diesen Schritt funktioniert der Browser-Modus nicht!
+Das muss nur EINMAL gemacht werden!
+Ohne dies funktioniert der Browser-Modus nicht.
 
 
-📋 WAS IST WAS?
+📋 PROJEKT-DATEIEN
 ══════════════════════════════════════════════════════════════════
 
-build_windows.bat     → Baut die .exe Dateien
+build_windows.bat     → Baut die .exe Datei
 build.py              → Python Build-Script
 scraper_v2.py         → Haupt-Scraper (Quellcode)
 scraper_ui.py         → UI-Version (Quellcode)
-config.yaml           → Konfiguration (mitkopieren!)
-BAUEN.txt             → Build-Anleitung
+config.yaml           → Konfiguration
+BAUEN.txt             → Kurz-Anleitung
 README_WINDOWS.txt    → Ausführliche Anleitung
-BUILD.md              → Build-Dokumentation
 
 
 🔧 PROBLEME?
@@ -62,10 +62,13 @@ BUILD.md              → Build-Dokumentation
 
 Build schlägt fehl:
   → pip install -r requirements.txt
-  → pip install pyinstaller cffi
   → Nochmal versuchen: python build.py
 
-.exe funktioniert nicht:
+.exe startet nicht:
+  → Antivirus ausschalten (PyInstaller wird oft geblockt)
+  → Als Administrator ausführen
+
+.exe funktioniert nicht richtig:
   → Playwright installiert? (siehe oben)
   → config.yaml im selben Ordner wie .exe?
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple Windows .exe builder
-Works on Windows 11
+Porn Scraper - Windows .exe Builder
+Builds ONE single executable
 """
 
 import os
@@ -11,162 +11,179 @@ import platform
 from pathlib import Path
 
 def print_header(text):
-    """Print fancy header"""
+    """Print header"""
     print("\n" + "=" * 70)
     print(f"  {text}")
     print("=" * 70 + "\n")
 
-def check_pyinstaller():
-    """Check if PyInstaller is installed"""
-    try:
-        import PyInstaller
-        return True
-    except ImportError:
-        return False
-
-def install_pyinstaller():
-    """Install PyInstaller"""
-    print("Installing PyInstaller...")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller", "cffi"])
-    print("PyInstaller installed successfully\n")
-
-def build_exe_direct(script_name, exe_name):
-    """Build executable directly without spec file"""
-    print(f"\nBuilding {exe_name}...")
-    print("This may take 2-5 minutes, please wait...\n")
-
-    # Build command
-    cmd = [
-        "pyinstaller",
-        "--onefile",
-        "--name", exe_name,
-        "--add-data", "config.yaml;.",
-        "--hidden-import", "playwright.async_api",
-        "--hidden-import", "bs4",
-        "--hidden-import", "yaml",
-        "--hidden-import", "rich",
-        "--hidden-import", "PIL",
-        "--hidden-import", "tqdm",
-    ]
-
-    # Add questionary for UI version
-    if "ui" in script_name:
-        cmd.extend(["--hidden-import", "questionary"])
-
-    cmd.append(script_name)
-
-    # Run PyInstaller with LIVE output
-    print("PyInstaller output:")
-    print("-" * 70)
-    try:
-        result = subprocess.run(cmd, check=True)
-        print("-" * 70)
-        print(f"\nSUCCESS: {exe_name}.exe built!\n")
-        return True
-    except subprocess.CalledProcessError as e:
-        print("-" * 70)
-        print(f"\nERROR building {exe_name}: Build failed (exit code {e.returncode})")
-        return False
-    except Exception as e:
-        print(f"\nERROR: {e}")
-        return False
-
-def main():
-    print_header("Windows .exe Builder")
-
-    # Check platform
-    if platform.system() != "Windows":
-        print("WARNING: You are not on Windows!")
-        print("This will create executables for your current platform only.\n")
-    else:
-        print("Platform: Windows")
-        print("Python:", sys.version.split()[0], "\n")
+def check_and_install_deps():
+    """Check and install build dependencies"""
+    print("Checking dependencies...\n")
 
     # Check PyInstaller
-    if not check_pyinstaller():
-        print("PyInstaller not found")
-        response = input("Install PyInstaller now? [Y/n]: ").strip().lower()
-        if response in ['', 'y', 'yes', 'j', 'ja']:
-            install_pyinstaller()
-        else:
-            print("Cannot continue without PyInstaller")
-            return 1
-    else:
-        print("PyInstaller is installed\n")
+    try:
+        import PyInstaller
+        print("OK PyInstaller installed")
+    except ImportError:
+        print("Installing PyInstaller...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller", "cffi"])
+        print("OK PyInstaller installed")
 
-    # Clean old builds
+    # Install all requirements
+    if os.path.exists("requirements.txt"):
+        print("\nInstalling dependencies from requirements.txt...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+        print("OK All dependencies installed")
+
+    print()
+
+def clean_old_builds():
+    """Remove old build artifacts"""
     print("Cleaning old builds...")
-    for folder in ["build", "dist"]:
+
+    for folder in ["build", "dist", "__pycache__"]:
         if os.path.exists(folder):
             import shutil
             shutil.rmtree(folder)
             print(f"  Removed {folder}/")
 
-    # Remove old spec files created by previous builds
+    # Remove old spec files
     for spec in Path(".").glob("*.spec"):
         spec.unlink()
         print(f"  Removed {spec.name}")
 
-    print("Clean complete\n")
+    print("OK Clean complete\n")
 
-    # Build executables
-    print_header("Building Executables")
-    print("\nIMPORTANT: Each build takes 2-5 minutes!")
-    print("You will see PyInstaller output below.\n")
+def build_single_exe():
+    """Build single .exe file"""
+    print_header("Building PornScraper.exe")
+    print("Building ONE portable .exe file...")
+    print("This will take 3-5 minutes.\n")
 
-    success = True
+    # PyInstaller command - SINGLE FILE
+    cmd = [
+        "pyinstaller",
+        "--onefile",                          # Single .exe file
+        "--name", "PornScraper",              # Name
+        "--console",                          # Keep console for now
 
-    # Build CLI version
-    if not build_exe_direct("scraper_v2.py", "scraper"):
-        success = False
+        # Include data files
+        "--add-data", "config.yaml;.",
 
-    # Build UI version
-    if not build_exe_direct("scraper_ui.py", "scraper_ui"):
-        success = False
+        # Hidden imports - ALL dependencies
+        "--hidden-import", "playwright",
+        "--hidden-import", "playwright.async_api",
+        "--hidden-import", "bs4",
+        "--hidden-import", "yaml",
+        "--hidden-import", "requests",
+        "--hidden-import", "rich",
+        "--hidden-import", "rich.console",
+        "--hidden-import", "rich.panel",
+        "--hidden-import", "rich.table",
+        "--hidden-import", "rich.prompt",
+        "--hidden-import", "questionary",
+        "--hidden-import", "PIL",
+        "--hidden-import", "tqdm",
+        "--hidden-import", "click",
 
-    # Show results
+        # Collect all submodules
+        "--collect-all", "playwright",
+        "--collect-all", "rich",
+        "--collect-all", "questionary",
+
+        # Main script
+        "scraper_ui.py"
+    ]
+
+    print("PyInstaller output:")
+    print("-" * 70)
+
+    try:
+        result = subprocess.run(cmd, check=True)
+        print("-" * 70)
+        print("\nOK Build successful!\n")
+        return True
+    except subprocess.CalledProcessError as e:
+        print("-" * 70)
+        print(f"\nERROR Build failed (exit code {e.returncode})\n")
+        return False
+
+def show_results():
+    """Show build results"""
     print_header("Build Complete!")
 
-    if success:
-        dist_path = Path("dist")
+    dist_path = Path("dist")
 
-        if dist_path.exists():
-            print("Executables created in: dist\\\n")
+    if not dist_path.exists():
+        print("ERROR: dist/ folder not created!")
+        return False
 
-            for exe_file in sorted(dist_path.glob("*.exe")):
-                size = exe_file.stat().st_size / (1024 * 1024)
-                print(f"   {exe_file.name:<20} {size:>6.1f} MB")
+    exe_files = list(dist_path.glob("*.exe"))
+    if not exe_files:
+        print("ERROR: No .exe file created!")
+        return False
 
-            print("\n" + "=" * 70)
-            print("SUCCESS!")
-            print("=" * 70)
-            print("\nTo distribute, copy these files:")
-            print("   - dist\\scraper.exe")
-            print("   - dist\\scraper_ui.exe")
-            print("   - config.yaml")
+    print("SUCCESS! Your executable is ready:\n")
 
-            if platform.system() == "Windows":
-                print("\nIMPORTANT: Users must install Playwright browsers once:")
-                print("   pip install playwright")
-                print("   playwright install chromium")
+    for exe_file in sorted(exe_files):
+        size = exe_file.stat().st_size / (1024 * 1024)
+        print(f"   File: {exe_file.name}")
+        print(f"   Size: {size:.1f} MB")
+        print(f"   Path: {exe_file.absolute()}\n")
 
-            print("")
-            input("\nPress Enter to exit...")
-            return 0
-        else:
-            print("ERROR: dist folder not created")
-            input("\nPress Enter to exit...")
-            return 1
+    print("=" * 70)
+    print("HOW TO USE:")
+    print("=" * 70)
+    print("\n1. Go to folder: dist\\")
+    print("2. Double-click: PornScraper.exe")
+    print("3. Follow the menu\n")
+
+    print("=" * 70)
+    print("FIRST TIME SETUP:")
+    print("=" * 70)
+    print("\nBefore using, install Playwright browsers:")
+    print("  pip install playwright")
+    print("  playwright install chromium\n")
+    print("This is needed only once!\n")
+
+    return True
+
+def main():
+    print_header("Porn Scraper - Windows .exe Builder")
+
+    # Check platform
+    if platform.system() != "Windows":
+        print("WARNING: Not on Windows!")
+        print("Will create executable for your current platform.\n")
     else:
-        print("Some builds failed. Check errors above.")
+        print(f"Platform: Windows")
+        print(f"Python: {sys.version.split()[0]}\n")
+
+    # Install dependencies
+    check_and_install_deps()
+
+    # Clean
+    clean_old_builds()
+
+    # Build
+    if not build_single_exe():
+        print("\nERROR: Build failed!")
         input("\nPress Enter to exit...")
         return 1
+
+    # Show results
+    if not show_results():
+        input("\nPress Enter to exit...")
+        return 1
+
+    input("\nPress Enter to exit...")
+    return 0
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\n\nBuild cancelled by user")
+        print("\n\nBuild cancelled")
         input("\nPress Enter to exit...")
         sys.exit(1)
     except Exception as e:

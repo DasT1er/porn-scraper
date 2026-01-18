@@ -1,30 +1,27 @@
 @echo off
-REM Windows .exe Builder Batch Script
-REM Run this on Windows to create .exe files
+REM Porn Scraper - Windows .exe Builder
+REM Builds ONE single executable with everything included
 
 echo ================================================================
-echo   Windows .exe Builder for Porn Scraper
+echo   Porn Scraper - Windows .exe Builder
 echo ================================================================
 echo.
 
-REM Check if Python is installed
+REM Check Python
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Python is not installed!
+    echo ERROR: Python not installed!
     echo.
-    echo Please install Python from: https://www.python.org/downloads/
-    echo Make sure to check "Add Python to PATH" during installation
+    echo Install from: https://www.python.org/downloads/
     echo.
     pause
     exit /b 1
 )
 
-echo Python is installed
+echo Python OK
 echo.
 
-REM Run the Python build script
+REM Run build script
 python build.py
 
-echo.
-echo ================================================================
 pause
