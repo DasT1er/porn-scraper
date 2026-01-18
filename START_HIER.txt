@@ -1,8 +1,8 @@
-╔════════════════════════════════════════════════════════════════╗
-║                                                                ║
-║     PORN SCRAPER - Windows 11 - START HIER!                   ║
-║                                                                ║
-╚════════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║     PORN SCRAPER - Windows 11 - START HIER!                     ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
 
 
 🚀 .exe DATEI BAUEN
@@ -26,53 +26,71 @@ Doppelklick auf: PornScraper.exe
 
 → Interaktives Menü öffnet sich
 → Folge den Anweisungen
-→ Fertig!
 
 
-⚠️  WICHTIG - EINMALIGE EINRICHTUNG
+⚠️  WICHTIG - ERSTER START
 ══════════════════════════════════════════════════════════════════
 
-Vor der ersten Nutzung Playwright installieren:
+Beim ERSTEN Start lädt die .exe automatisch den Chromium Browser
+herunter (~300 MB). Das dauert 2-3 Minuten.
 
-  pip install playwright
-  playwright install chromium
+Du siehst:
+  "⚠ Playwright browsers not found!"
+  "📥 Installing Chromium browser automatically..."
+  "This is a one-time setup (takes 2-3 minutes)"
 
-Das muss nur EINMAL gemacht werden!
-Ohne dies funktioniert der Browser-Modus nicht.
+→ Einfach warten, es installiert sich automatisch!
+
+Nach dem ersten Start: Läuft alles sofort, keine Installation mehr!
 
 
-📋 PROJEKT-DATEIEN
+📁 WEITERGEBEN
 ══════════════════════════════════════════════════════════════════
 
-build_windows.bat     → Baut die .exe Datei
-build.py              → Python Build-Script
-scraper_v2.py         → Haupt-Scraper (Quellcode)
-scraper_ui.py         → UI-Version (Quellcode)
-config.yaml           → Konfiguration
-BAUEN.txt             → Kurz-Anleitung
-README_WINDOWS.txt    → Ausführliche Anleitung
+Du kannst die .exe an andere weitergeben:
+
+1. Kopiere: PornScraper.exe
+2. Schicke an jemanden
+3. Empfänger startet die .exe
+4. Beim ersten Start: Browser wird automatisch heruntergeladen
+5. Fertig!
+
+WICHTIG: Jeder muss beim ersten Start einmal 2-3 Minuten warten
+         für den Browser-Download!
+
+
+💡 ALTERNATIVE: PORTABLE VERSION
+══════════════════════════════════════════════════════════════════
+
+Wenn du willst, dass ALLES schon drin ist (auch der Browser):
+
+Baue die PORTABLE Version:
+  build_portable.bat
+
+Ergebnis: dist_portable\ Ordner (300-500 MB)
+  - Browser ist schon eingebaut
+  - Kein Download beim ersten Start
+  - Einfach entpacken und nutzen
 
 
 🔧 PROBLEME?
 ══════════════════════════════════════════════════════════════════
 
-"Python not found":
-  → Python installieren: https://www.python.org/downloads/
-  → Bei Installation "Add Python to PATH" anhaken!
-
-Build schlägt fehl:
-  → pip install -r requirements.txt
-  → Nochmal versuchen: python build.py
-
 .exe startet nicht:
-  → Antivirus ausschalten (PyInstaller wird oft geblockt)
+  → Antivirus ausschalten
   → Als Administrator ausführen
+  → Windows Defender: "Zugriff zulassen"
 
-.exe funktioniert nicht richtig:
-  → Playwright installiert? (siehe oben)
-  → config.yaml im selben Ordner wie .exe?
+Browser-Installation hängt:
+  → Internet-Verbindung prüfen
+  → Firewall-Einstellungen prüfen
+  → Nochmal starten
+
+"config.yaml not found":
+  → Ist kein Fehler! Die .exe nutzt Default-Einstellungen
+  → Alles funktioniert trotzdem
 
 
 ══════════════════════════════════════════════════════════════════
-               Viel Erfolg! 🎉
+                    Viel Erfolg! 🎉
 ══════════════════════════════════════════════════════════════════
