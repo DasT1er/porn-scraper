@@ -9,11 +9,32 @@ import asyncio
 import re
 import time
 import json
+import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Set, Tuple
 from urllib.parse import urljoin, urlparse
 import hashlib
+
+# Set Playwright browsers path for portable .exe builds
+# This must be done BEFORE importing playwright
+if getattr(sys, 'frozen', False):
+    # Running as .exe
+    bundle_dir = sys._MEIPASS
+    exe_dir = os.path.dirname(sys.executable)
+
+    # Check for bundled Chromium in multiple locations
+    possible_browser_paths = [
+        os.path.join(exe_dir, '_internal', 'playwright'),
+        os.path.join(bundle_dir, 'playwright'),
+        os.path.join(exe_dir, 'playwright'),
+    ]
+
+    for browser_path in possible_browser_paths:
+        if os.path.exists(browser_path):
+            os.environ['PLAYWRIGHT_BROWSERS_PATH'] = browser_path
+            break
 
 # Web scraping
 import requests
@@ -925,10 +946,25 @@ class HybridScraper:
                     browser_type = p.chromium
                     # This will raise if browser is not installed
                     executable = browser_type.executable_path
-                    console.print(f"[dim]✓ Chromium browser found[/dim]")
-                    return
-            except Exception:
+
+                    # Log where browser was found
+                    if os.path.exists(executable):
+                        console.print(f"[dim]✓ Chromium browser found at: {executable}[/dim]")
+                        return
+            except Exception as e:
+                console.print(f"[dim]Browser check failed: {e}[/dim]")
                 pass
+
+            # Check if we're running as .exe with bundled browsers
+            if getattr(sys, 'frozen', False):
+                exe_dir = os.path.dirname(sys.executable)
+                bundled_browser = os.path.join(exe_dir, '_internal', 'playwright', 'chromium')
+
+                if os.path.exists(bundled_browser):
+                    console.print(f"[yellow]⚠ Bundled Chromium found but Playwright can't use it[/yellow]")
+                    console.print(f"[yellow]Location: {bundled_browser}[/yellow]")
+                    console.print(f"[yellow]This is a known issue with portable builds.[/yellow]")
+                    console.print(f"[yellow]Attempting automatic installation...[/yellow]\n")
 
             # Browser not found, install it
             console.print("\n[yellow]════════════════════════════════════════════════════[/yellow]")
