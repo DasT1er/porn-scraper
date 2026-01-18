@@ -913,6 +913,7 @@ class HybridScraper:
         """Ensure Playwright browsers are installed, install if missing"""
         import subprocess
         import sys
+        import os
 
         try:
             # Try to check if chromium is installed
@@ -934,29 +935,44 @@ class HybridScraper:
             console.print("[yellow]⚠ Playwright browsers not found![/yellow]")
             console.print("[cyan]📥 Installing Chromium browser automatically...[/cyan]")
             console.print("[cyan]This is a one-time setup (takes 2-3 minutes)[/cyan]")
+            console.print("[cyan]Please wait, download is running...[/cyan]")
             console.print("[yellow]════════════════════════════════════════════════════[/yellow]\n")
 
-            # Install chromium browser
-            result = subprocess.run(
-                [sys.executable, "-m", "playwright", "install", "chromium"],
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minutes max
-            )
+            # Install chromium browser - let output go directly to console
+            # This avoids encoding issues on Windows
+            try:
+                result = subprocess.run(
+                    [sys.executable, "-m", "playwright", "install", "chromium"],
+                    check=True,  # Raises exception if fails
+                    timeout=300,  # 5 minutes max
+                    # Let output go directly to console to avoid encoding issues
+                    stdout=None,
+                    stderr=None
+                )
 
-            if result.returncode == 0:
                 console.print("\n[green]✓ Chromium browser installed successfully![/green]")
                 console.print("[dim]Browser is now ready to use.[/dim]\n")
-            else:
-                console.print("\n[red]✗ Failed to install Chromium browser[/red]")
-                console.print(f"[dim]{result.stderr}[/dim]")
+
+            except subprocess.CalledProcessError as e:
+                console.print(f"\n[red]✗ Failed to install Chromium browser (exit code {e.returncode})[/red]")
+                console.print("\n[yellow]Manual installation:[/yellow]")
+                console.print("[yellow]Open Command Prompt and run:[/yellow]")
+                console.print("[cyan]  playwright install chromium[/cyan]\n")
                 raise Exception("Browser installation failed")
 
         except subprocess.TimeoutExpired:
             console.print("\n[red]✗ Browser installation timed out[/red]")
+            console.print("[yellow]This can happen with slow internet connection.[/yellow]")
+            console.print("\n[yellow]Manual installation:[/yellow]")
+            console.print("[yellow]Open Command Prompt and run:[/yellow]")
+            console.print("[cyan]  playwright install chromium[/cyan]\n")
             raise
         except Exception as e:
-            console.print(f"\n[red]✗ Error ensuring browsers: {e}[/red]")
+            if "Browser installation failed" not in str(e):
+                console.print(f"\n[red]✗ Error ensuring browsers: {e}[/red]")
+                console.print("\n[yellow]Manual installation:[/yellow]")
+                console.print("[yellow]Open Command Prompt and run:[/yellow]")
+                console.print("[cyan]  playwright install chromium[/cyan]\n")
             raise
 
     async def _scrape_with_playwright(self, url: str) -> List[str]:
