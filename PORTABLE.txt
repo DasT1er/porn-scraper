@@ -1,0 +1,132 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║     PORN SCRAPER - PORTABLE VERSION ERSTELLEN                   ║
+║     Komplett eigenständig - KEINE Installation nötig!           ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+
+✨ WAS IST DIE PORTABLE VERSION?
+═══════════════════════════════════════════════════════════════════
+
+Eine komplett eigenständige Version mit:
+  ✓ Chromium Browser eingebaut (~300 MB)
+  ✓ Alle Dependencies inklusive
+  ✓ KEINE Playwright-Installation nötig
+  ✓ Einfach starten und nutzen
+  ✓ Kann an jeden weitergegeben werden
+
+Größe: ca. 300-500 MB (ja, das ist normal!)
+
+
+🚀 SO BAUST DU DIE PORTABLE VERSION:
+═══════════════════════════════════════════════════════════════════
+
+METHODE 1 (Einfach):
+────────────────────
+Doppelklick auf: build_portable.bat
+
+
+METHODE 2 (Command Line):
+──────────────────────────
+python build_portable.py
+
+
+WICHTIG:
+────────
+Der erste Build dauert 10-15 Minuten!
+  - Lädt Chromium herunter (~300 MB)
+  - Installiert alle Dependencies
+  - Baut die portable Version
+  - Kopiert Chromium in die .exe
+
+Danach hast du:
+  dist_portable/
+    ├── START_PornScraper.bat    ← Einfach starten!
+    ├── README.txt
+    └── PornScraper/
+        ├── PornScraper.exe
+        ├── _internal/
+        │   ├── playwright/
+        │   │   └── chromium/    ← Browser hier drin!
+        │   └── ... (alle libs)
+        └── config.yaml
+
+
+📦 NUTZUNG DER PORTABLEN VERSION:
+═══════════════════════════════════════════════════════════════════
+
+1. Gehe in: dist_portable/
+
+2. Doppelklick auf: START_PornScraper.bat
+
+3. Fertig! Das Programm läuft!
+
+
+🎁 WEITERGEBEN:
+═══════════════════════════════════════════════════════════════════
+
+1. Zippe den Ordner: dist_portable.zip
+
+2. Schicke die ZIP an jemanden
+
+3. Empfänger entpackt die ZIP
+
+4. Empfänger startet START_PornScraper.bat
+
+5. Es funktioniert SOFORT - keine Installation!
+
+
+💡 VORTEILE DER PORTABLE VERSION:
+═══════════════════════════════════════════════════════════════════
+
+✓ Keine Python-Installation nötig
+✓ Keine Playwright-Installation nötig
+✓ Keine pip install Befehle nötig
+✓ Browser ist eingebaut
+✓ Läuft auf jedem Windows-PC
+✓ Kann von USB-Stick gestartet werden
+✓ Perfekt zum Weitergeben
+
+
+⚠️  NACHTEILE:
+═══════════════════════════════════════════════════════════════════
+
+✗ Größer (300-500 MB statt 30-50 MB)
+✗ Erster Build dauert länger
+✗ Antivirus könnte warnen (PyInstaller + Browser = verdächtig)
+
+
+🔧 UNTERSCHIED ZUR NORMALEN VERSION:
+═══════════════════════════════════════════════════════════════════
+
+NORMALE VERSION (build.py):
+  - Kleine .exe (30-50 MB)
+  - Nutzer muss Playwright installieren
+  - Besser für Entwickler
+
+PORTABLE VERSION (build_portable.py):
+  - Große Datei (300-500 MB)
+  - KEINE Installation nötig
+  - Besser für Endnutzer
+
+
+💻 WELCHE VERSION SOLL ICH NUTZEN?
+═══════════════════════════════════════════════════════════════════
+
+NUTZE PORTABLE VERSION wenn:
+  ✓ Du es an andere weitergeben willst
+  ✓ Keine Lust auf Playwright-Installation
+  ✓ Größe egal ist
+  ✓ "Einfach starten und nutzen" willst
+
+NUTZE NORMALE VERSION wenn:
+  ✓ Du es nur selbst nutzt
+  ✓ Playwright schon installiert ist
+  ✓ Kleinere Dateigröße wichtig ist
+  ✓ Du regelmäßig Updates machst
+
+
+═══════════════════════════════════════════════════════════════════
+           Portable = Perfekt für Weitergabe! 🎁
+═══════════════════════════════════════════════════════════════════
