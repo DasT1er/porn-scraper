@@ -32,7 +32,8 @@ def install_pyinstaller():
 
 def build_exe_direct(script_name, exe_name):
     """Build executable directly without spec file"""
-    print(f"Building {exe_name}...")
+    print(f"\nBuilding {exe_name}...")
+    print("This may take 2-5 minutes, please wait...\n")
 
     # Build command
     cmd = [
@@ -54,15 +55,20 @@ def build_exe_direct(script_name, exe_name):
 
     cmd.append(script_name)
 
-    # Run PyInstaller
-    result = subprocess.run(cmd, capture_output=True, text=True)
-
-    if result.returncode == 0:
-        print(f"SUCCESS: {exe_name}.exe built\n")
+    # Run PyInstaller with LIVE output
+    print("PyInstaller output:")
+    print("-" * 70)
+    try:
+        result = subprocess.run(cmd, check=True)
+        print("-" * 70)
+        print(f"\nSUCCESS: {exe_name}.exe built!\n")
         return True
-    else:
-        print(f"ERROR building {exe_name}:")
-        print(result.stderr)
+    except subprocess.CalledProcessError as e:
+        print("-" * 70)
+        print(f"\nERROR building {exe_name}: Build failed (exit code {e.returncode})")
+        return False
+    except Exception as e:
+        print(f"\nERROR: {e}")
         return False
 
 def main():
@@ -94,20 +100,29 @@ def main():
         if os.path.exists(folder):
             import shutil
             shutil.rmtree(folder)
+            print(f"  Removed {folder}/")
 
     # Remove old spec files created by previous builds
     for spec in Path(".").glob("*.spec"):
-        if spec.name not in ["scraper.spec", "scraper_ui.spec", "scraper_v2.spec"]:
-            spec.unlink()
+        spec.unlink()
+        print(f"  Removed {spec.name}")
 
     print("Clean complete\n")
 
     # Build executables
     print_header("Building Executables")
+    print("\nIMPORTANT: Each build takes 2-5 minutes!")
+    print("You will see PyInstaller output below.\n")
 
     success = True
-    success = build_exe_direct("scraper_v2.py", "scraper") and success
-    success = build_exe_direct("scraper_ui.py", "scraper_ui") and success
+
+    # Build CLI version
+    if not build_exe_direct("scraper_v2.py", "scraper"):
+        success = False
+
+    # Build UI version
+    if not build_exe_direct("scraper_ui.py", "scraper_ui"):
+        success = False
 
     # Show results
     print_header("Build Complete!")
@@ -118,10 +133,9 @@ def main():
         if dist_path.exists():
             print("Executables created in: dist\\\n")
 
-            for exe_file in sorted(dist_path.glob("*")):
-                if exe_file.is_file():
-                    size = exe_file.stat().st_size / (1024 * 1024)
-                    print(f"   {exe_file.name:<20} {size:>6.1f} MB")
+            for exe_file in sorted(dist_path.glob("*.exe")):
+                size = exe_file.stat().st_size / (1024 * 1024)
+                print(f"   {exe_file.name:<20} {size:>6.1f} MB")
 
             print("\n" + "=" * 70)
             print("SUCCESS!")
@@ -137,12 +151,15 @@ def main():
                 print("   playwright install chromium")
 
             print("")
+            input("\nPress Enter to exit...")
             return 0
         else:
             print("ERROR: dist folder not created")
+            input("\nPress Enter to exit...")
             return 1
     else:
         print("Some builds failed. Check errors above.")
+        input("\nPress Enter to exit...")
         return 1
 
 if __name__ == "__main__":
@@ -150,9 +167,11 @@ if __name__ == "__main__":
         sys.exit(main())
     except KeyboardInterrupt:
         print("\n\nBuild cancelled by user")
+        input("\nPress Enter to exit...")
         sys.exit(1)
     except Exception as e:
         print(f"\n\nERROR: {e}")
         import traceback
         traceback.print_exc()
+        input("\nPress Enter to exit...")
         sys.exit(1)
