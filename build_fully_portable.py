@@ -115,23 +115,44 @@ def main():
 
     # Find Playwright's Chromium
     playwright_cache = Path.home() / "AppData" / "Local" / "ms-playwright"
+
+    # Find both chromium and chromium_headless_shell
     chromium_dirs = list(playwright_cache.glob("chromium-*"))
+    headless_shell_dirs = list(playwright_cache.glob("chromium_headless_shell-*"))
 
     if not chromium_dirs:
         print("ERROR: Chromium not found!")
         print(f"Searched in: {playwright_cache}")
         return 1
 
+    # Copy main Chromium browser
     chromium_src = chromium_dirs[0]
     print(f"Found Chromium: {chromium_src}")
 
-    # Copy to dist folder
     chromium_dest = Path("dist") / "PornScraper" / "playwright_browsers" / "chromium"
     print(f"Copying to: {chromium_dest}")
 
     chromium_dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(chromium_src, chromium_dest, dirs_exist_ok=True)
-    print("OK: Chromium copied\n")
+    print("OK: Chromium copied")
+
+    # Copy headless shell (required for headless mode)
+    if headless_shell_dirs:
+        headless_shell_src = headless_shell_dirs[0]
+        # Extract version number from folder name (e.g., chromium_headless_shell-1200)
+        headless_folder_name = headless_shell_src.name
+        print(f"Found Headless Shell: {headless_shell_src}")
+
+        headless_shell_dest = Path("dist") / "PornScraper" / "playwright_browsers" / headless_folder_name
+        print(f"Copying to: {headless_shell_dest}")
+
+        shutil.copytree(headless_shell_src, headless_shell_dest, dirs_exist_ok=True)
+        print("OK: Headless shell copied")
+    else:
+        print("WARNING: Headless shell not found - headless mode may not work")
+        print(f"Searched in: {playwright_cache}")
+
+    print()
 
     # Create launcher script
     print("Creating launcher...")
