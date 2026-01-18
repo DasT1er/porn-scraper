@@ -1,0 +1,75 @@
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║     PORN SCRAPER - Windows 11 - START HIER!                   ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+
+
+🚀 .exe DATEIEN BAUEN
+══════════════════════════════════════════════════════════════════
+
+Doppelklick auf: build_windows.bat
+
+Oder Command Prompt öffnen und eingeben:
+  python build.py
+
+→ Die fertigen .exe Dateien findest du dann in: dist\
+
+
+📦 NUTZUNG
+══════════════════════════════════════════════════════════════════
+
+INTERAKTIVE VERSION (Einfach!):
+  → Doppelklick auf: dist\scraper_ui.exe
+  → Folge dem Menü
+
+KOMMANDOZEILEN VERSION:
+  → Command Prompt öffnen
+  → cd zum Ordner mit scraper.exe
+  → Eingeben: scraper.exe https://multporn.net/comics/...
+
+
+⚠️  WICHTIG - VOR DER ERSTEN NUTZUNG
+══════════════════════════════════════════════════════════════════
+
+Playwright Browser installieren (nur einmal nötig):
+
+  pip install playwright
+  playwright install chromium
+
+Ohne diesen Schritt funktioniert der Browser-Modus nicht!
+
+
+📋 WAS IST WAS?
+══════════════════════════════════════════════════════════════════
+
+build_windows.bat     → Baut die .exe Dateien
+build.py              → Python Build-Script
+scraper_v2.py         → Haupt-Scraper (Quellcode)
+scraper_ui.py         → UI-Version (Quellcode)
+config.yaml           → Konfiguration (mitkopieren!)
+BAUEN.txt             → Build-Anleitung
+README_WINDOWS.txt    → Ausführliche Anleitung
+BUILD.md              → Build-Dokumentation
+
+
+🔧 PROBLEME?
+══════════════════════════════════════════════════════════════════
+
+"Python not found":
+  → Python installieren: https://www.python.org/downloads/
+  → Bei Installation "Add Python to PATH" anhaken!
+
+Build schlägt fehl:
+  → pip install -r requirements.txt
+  → pip install pyinstaller cffi
+  → Nochmal versuchen: python build.py
+
+.exe funktioniert nicht:
+  → Playwright installiert? (siehe oben)
+  → config.yaml im selben Ordner wie .exe?
+
+
+══════════════════════════════════════════════════════════════════
+               Viel Erfolg! 🎉
+══════════════════════════════════════════════════════════════════
