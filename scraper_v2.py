@@ -1047,11 +1047,22 @@ class HybridScraper:
 
         try:
             async with async_playwright() as p:
+                # Check if we have a portable browser
+                launch_options = {
+                    'headless': self.config['scraper'].get('headless', True),
+                    'args': ['--no-sandbox', '--disable-setuid-sandbox']
+                }
+
+                # If portable browser exists, use direct executable path
+                browsers_path = os.environ.get('PLAYWRIGHT_BROWSERS_PATH')
+                if browsers_path:
+                    chrome_exe = os.path.join(browsers_path, 'chromium', 'chrome-win64', 'chrome.exe')
+                    if os.path.exists(chrome_exe):
+                        launch_options['executable_path'] = chrome_exe
+                        console.print(f"[dim]Using portable browser: {chrome_exe}[/dim]")
+
                 # Launch browser
-                browser = await p.chromium.launch(
-                    headless=self.config['scraper'].get('headless', True),
-                    args=['--no-sandbox', '--disable-setuid-sandbox']
-                )
+                browser = await p.chromium.launch(**launch_options)
 
                 # Create context with realistic settings
                 context = await browser.new_context(
