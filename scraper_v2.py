@@ -909,12 +909,65 @@ class HybridScraper:
         unique_images = list(dict.fromkeys(all_images))
         return unique_images
 
+    def _ensure_playwright_browsers(self):
+        """Ensure Playwright browsers are installed, install if missing"""
+        import subprocess
+        import sys
+
+        try:
+            # Try to check if chromium is installed
+            from playwright.sync_api import sync_playwright
+
+            # Quick check: try to get browser executable path
+            try:
+                with sync_playwright() as p:
+                    browser_type = p.chromium
+                    # This will raise if browser is not installed
+                    executable = browser_type.executable_path
+                    console.print(f"[dim]✓ Chromium browser found[/dim]")
+                    return
+            except Exception:
+                pass
+
+            # Browser not found, install it
+            console.print("\n[yellow]════════════════════════════════════════════════════[/yellow]")
+            console.print("[yellow]⚠ Playwright browsers not found![/yellow]")
+            console.print("[cyan]📥 Installing Chromium browser automatically...[/cyan]")
+            console.print("[cyan]This is a one-time setup (takes 2-3 minutes)[/cyan]")
+            console.print("[yellow]════════════════════════════════════════════════════[/yellow]\n")
+
+            # Install chromium browser
+            result = subprocess.run(
+                [sys.executable, "-m", "playwright", "install", "chromium"],
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minutes max
+            )
+
+            if result.returncode == 0:
+                console.print("\n[green]✓ Chromium browser installed successfully![/green]")
+                console.print("[dim]Browser is now ready to use.[/dim]\n")
+            else:
+                console.print("\n[red]✗ Failed to install Chromium browser[/red]")
+                console.print(f"[dim]{result.stderr}[/dim]")
+                raise Exception("Browser installation failed")
+
+        except subprocess.TimeoutExpired:
+            console.print("\n[red]✗ Browser installation timed out[/red]")
+            raise
+        except Exception as e:
+            console.print(f"\n[red]✗ Error ensuring browsers: {e}[/red]")
+            raise
+
     async def _scrape_with_playwright(self, url: str) -> List[str]:
         """Scrape using Playwright (modern browser automation)"""
         if not HAS_PLAYWRIGHT:
             console.print("[red]✗ Playwright not installed![/red]")
             console.print("[yellow]Install: pip install playwright && playwright install chromium[/yellow]")
             return []
+
+        # Check if Playwright browsers are installed, install if needed
+        self._ensure_playwright_browsers()
 
         all_images = []
 
