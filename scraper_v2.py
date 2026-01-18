@@ -940,7 +940,26 @@ class HybridScraper:
         import os
 
         try:
-            # Try to check if chromium is installed
+            # FIRST: Check if we have a portable browser via PLAYWRIGHT_BROWSERS_PATH
+            browsers_path = os.environ.get('PLAYWRIGHT_BROWSERS_PATH')
+            if browsers_path and os.path.exists(browsers_path):
+                # Check if chromium folder exists in there
+                chromium_path = os.path.join(browsers_path, 'chromium')
+                if os.path.exists(chromium_path):
+                    # Check for chrome.exe or chrome executable
+                    chrome_exe_paths = [
+                        os.path.join(chromium_path, 'chrome-win64', 'chrome.exe'),  # Windows
+                        os.path.join(chromium_path, 'chrome-linux', 'chrome'),      # Linux
+                        os.path.join(chromium_path, 'chrome-mac', 'Chromium.app'),  # Mac
+                    ]
+
+                    for chrome_exe in chrome_exe_paths:
+                        if os.path.exists(chrome_exe):
+                            console.print(f"[green]✓ Portable Chromium found at: {chrome_exe}[/green]")
+                            console.print(f"[dim]Using bundled browser from: {browsers_path}[/dim]")
+                            return  # Browser is ready!
+
+            # SECOND: Try to check if chromium is installed normally
             from playwright.sync_api import sync_playwright
 
             # Quick check: try to get browser executable path
