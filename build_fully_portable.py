@@ -19,7 +19,12 @@ def run_command(cmd, description):
     """Run command and show output"""
     print(f"\n{description}...")
     print("-" * 70)
-    result = subprocess.run(cmd, shell=True)
+    # If cmd is a string, run with shell=True
+    # If cmd is a list, run without shell
+    if isinstance(cmd, str):
+        result = subprocess.run(cmd, shell=True)
+    else:
+        result = subprocess.run(cmd)
     print("-" * 70)
     if result.returncode != 0:
         print(f"ERROR: {description} failed!")
@@ -74,28 +79,36 @@ def main():
     # Step 3: Build the .exe
     print_header("Step 3/4: Building Executable")
 
-    # Create build command
-    build_cmd = f"""pyinstaller ^
-        --onedir ^
-        --name PornScraper ^
-        --console ^
-        --add-data "config.yaml;." ^
-        --hidden-import playwright ^
-        --hidden-import playwright.async_api ^
-        --hidden-import bs4 ^
-        --hidden-import yaml ^
-        --hidden-import requests ^
-        --hidden-import rich ^
-        --hidden-import questionary ^
-        --hidden-import PIL ^
-        --hidden-import tqdm ^
-        --collect-all playwright ^
-        --collect-all rich ^
-        --collect-all questionary ^
-        scraper_ui.py"""
+    # Create build command - single line for Windows
+    build_cmd = [
+        "pyinstaller",
+        "--onedir",
+        "--name", "PornScraper",
+        "--console",
+        "--add-data", "config.yaml;.",
+        "--hidden-import", "playwright",
+        "--hidden-import", "playwright.async_api",
+        "--hidden-import", "bs4",
+        "--hidden-import", "yaml",
+        "--hidden-import", "requests",
+        "--hidden-import", "rich",
+        "--hidden-import", "questionary",
+        "--hidden-import", "PIL",
+        "--hidden-import", "tqdm",
+        "--collect-all", "playwright",
+        "--collect-all", "rich",
+        "--collect-all", "questionary",
+        "scraper_ui.py"
+    ]
 
-    if not run_command(build_cmd, "Building with PyInstaller"):
+    print("Building with PyInstaller...")
+    print("-" * 70)
+    result = subprocess.run(build_cmd)
+    print("-" * 70)
+    if result.returncode != 0:
+        print("ERROR: Building with PyInstaller failed!")
         return 1
+    print("OK: Building with PyInstaller completed\n")
 
     # Step 4: Copy Chromium to the build
     print_header("Step 4/4: Adding Chromium Browser")
