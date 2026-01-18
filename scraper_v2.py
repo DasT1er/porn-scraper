@@ -26,6 +26,7 @@ if getattr(sys, 'frozen', False):
 
     # Check for bundled Chromium in multiple locations
     possible_browser_paths = [
+        os.path.join(exe_dir, 'playwright_browsers'),        # Created by BUILD_PORTABLE.bat
         os.path.join(exe_dir, '_internal', 'playwright'),
         os.path.join(bundle_dir, 'playwright'),
         os.path.join(exe_dir, 'playwright'),
@@ -34,6 +35,8 @@ if getattr(sys, 'frozen', False):
     for browser_path in possible_browser_paths:
         if os.path.exists(browser_path):
             os.environ['PLAYWRIGHT_BROWSERS_PATH'] = browser_path
+            # Also log it for debugging
+            print(f"[DEBUG] Set PLAYWRIGHT_BROWSERS_PATH to: {browser_path}")
             break
 
 # Web scraping
