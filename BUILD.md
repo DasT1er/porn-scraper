@@ -1,8 +1,40 @@
 # Build Instructions
 
-## Building Executables
+## Quick Start - Automatic Build
 
-This project uses PyInstaller to create standalone executables.
+### Option 1: Windows Users (Easiest!)
+
+Double-click `build_windows.bat` or run in Command Prompt:
+```cmd
+build_windows.bat
+```
+
+This will automatically:
+- Install PyInstaller if needed
+- Build both executables
+- Show you where the .exe files are
+
+### Option 2: Any Platform (Python Script)
+
+Run the universal build script:
+```bash
+python build.py
+```
+
+Works on Windows, Linux, and Mac!
+
+### Option 3: Linux/Mac to Windows (Docker Required)
+
+Build Windows .exe on Linux/Mac using Docker:
+```bash
+./build_windows_exe.sh
+```
+
+This creates Windows executables in `windows_build/` folder.
+
+## Manual Build (Advanced)
+
+If you prefer to build manually:
 
 ### Prerequisites
 
@@ -13,13 +45,8 @@ pip install pyinstaller
 
 ### Building on Windows (for .exe files)
 
-On Windows, run:
-
 ```bash
-# Build command-line version
 pyinstaller scraper.spec
-
-# Build interactive UI version
 pyinstaller scraper_ui.spec
 ```
 
@@ -27,13 +54,8 @@ The executables will be in `dist/scraper.exe` and `dist/scraper_ui.exe`.
 
 ### Building on Linux/Mac
 
-On Linux or Mac, run:
-
 ```bash
-# Build command-line version
 pyinstaller scraper.spec
-
-# Build interactive UI version
 pyinstaller scraper_ui.spec
 ```
 

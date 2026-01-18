@@ -1,0 +1,23 @@
+# Dockerfile for building Windows .exe on Linux
+FROM cdrx/pyinstaller-windows:latest
+
+# Set working directory
+WORKDIR /src
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+RUN pip install pyinstaller cffi
+
+# Copy project files
+COPY scraper_v2.py .
+COPY scraper_ui.py .
+COPY config.yaml .
+COPY scraper.spec .
+COPY scraper_ui.spec .
+
+# Build both executables
+RUN pyinstaller --clean scraper.spec
+RUN pyinstaller --clean scraper_ui.spec
+
+# The executables will be in /src/dist/
