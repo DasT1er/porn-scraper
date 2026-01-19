@@ -35,12 +35,12 @@ echo.
 echo Starte Umbenennung (Schritt 1: Temporaere Namen)...
 echo.
 
-REM Schritt 1: Alle Dateien zu temporaeren Namen umbenennen
-for %%f in (*.jpg *.jpeg *.png *.gif *.bmp *.webp *.JPG *.JPEG *.PNG *.GIF *.BMP *.WEBP) do (
+REM Schritt 1: Alle Dateien zu temporaeren Namen umbenennen (in umgekehrter Reihenfolge)
+for /f "delims=" %%f in ('dir /b /o-n *.jpg *.jpeg *.png *.gif *.bmp *.webp 2^>nul') do (
     set /a count+=1
     set "num=00000!count!"
     set "num=!num:~-6!"
-    set "ext=%%~xf"
+    for %%e in ("%%f") do set "ext=%%~xe"
     ren "%%f" "temp_!num!!ext!"
 )
 
@@ -53,7 +53,7 @@ REM Zaehler zuruecksetzen
 set count=0
 
 REM Schritt 2: Temporaere Dateien zu finalen Namen umbenennen
-for %%f in (temp_*.jpg temp_*.jpeg temp_*.png temp_*.gif temp_*.bmp temp_*.webp temp_*.JPG temp_*.JPEG temp_*.PNG temp_*.GIF temp_*.BMP temp_*.WEBP) do (
+for /f "delims=" %%f in ('dir /b /o-n temp_*.jpg temp_*.jpeg temp_*.png temp_*.gif temp_*.bmp temp_*.webp 2^>nul') do (
     set /a count+=1
 
     REM Formatiere Nummer mit fuehrenden Nullen (3 Stellen)
@@ -61,7 +61,7 @@ for %%f in (temp_*.jpg temp_*.jpeg temp_*.png temp_*.gif temp_*.bmp temp_*.webp 
     set "num=!num:~-3!"
 
     REM Ermittle Dateiendung
-    set "ext=%%~xf"
+    for %%e in ("%%f") do set "ext=%%~xe"
 
     REM Umbenennen
     ren "%%f" "%newname%_!num!!ext!"
