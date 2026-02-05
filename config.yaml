@@ -21,18 +21,28 @@ download:
 
 # Scraper Settings
 scraper:
-  # Browser settings
+  # Scraping mode: "auto" (try light first, fallback to browser), "browser" (selenium), "light" (requests only)
+  # Auto mode tries light mode first, then switches to browser if needed
+  default_mode: "auto"
+
+  # Minimum images to find before considering light mode successful
+  # If fewer images found, auto mode will switch to browser mode
+  min_images_threshold: 5
+
+  # Browser settings (for Selenium mode)
   headless: true
-  browser_type: "chromium"  # chromium, firefox, webkit
+
+  # User agent (leave empty for default)
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+  # Page load wait time (seconds) for browser mode
+  page_load_wait: 3
 
   # Timeout in milliseconds
   page_timeout: 30000
 
   # Wait for images to load
   wait_for_images: true
-
-  # User agent (leave empty for default)
-  user_agent: ""
 
   # Minimum image size to download (in KB)
   min_image_size: 50
@@ -89,6 +99,22 @@ ui:
 
   # Verbosity: "quiet", "normal", "verbose"
   verbosity: "normal"
+
+# Metadata Extraction
+metadata:
+  # Save metadata.json file with gallery info
+  save_metadata: true
+
+  # Metadata fields to extract:
+  # - title: Gallery title
+  # - tags: Tags/categories
+  # - artist: Artist/author name
+  # - date: Upload/publish date
+  # - category: Category/series
+  # - description: Gallery description
+  # - url: Source URL
+  # - scraped_at: Timestamp when scraped
+  # - image_count: Number of images
 
 # Advanced
 advanced:

@@ -1,0 +1,96 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║     PORN SCRAPER - Windows 11 - START HIER!                     ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+
+🚀 .exe DATEI BAUEN
+══════════════════════════════════════════════════════════════════
+
+Doppelklick auf: build_windows.bat
+
+Oder Command Prompt öffnen und eingeben:
+  python build.py
+
+→ Die fertige .exe findest du in: dist\PornScraper.exe
+
+DU BEKOMMST EINE DATEI:
+  ✓ PornScraper.exe (30-50 MB)
+
+
+📦 NUTZUNG
+══════════════════════════════════════════════════════════════════
+
+Doppelklick auf: PornScraper.exe
+
+→ Interaktives Menü öffnet sich
+→ Folge den Anweisungen
+
+
+⚠️  WICHTIG - ERSTER START
+══════════════════════════════════════════════════════════════════
+
+Beim ERSTEN Start lädt die .exe automatisch den Chromium Browser
+herunter (~300 MB). Das dauert 2-3 Minuten.
+
+Du siehst:
+  "⚠ Playwright browsers not found!"
+  "📥 Installing Chromium browser automatically..."
+  "This is a one-time setup (takes 2-3 minutes)"
+
+→ Einfach warten, es installiert sich automatisch!
+
+Nach dem ersten Start: Läuft alles sofort, keine Installation mehr!
+
+
+📁 WEITERGEBEN
+══════════════════════════════════════════════════════════════════
+
+Du kannst die .exe an andere weitergeben:
+
+1. Kopiere: PornScraper.exe
+2. Schicke an jemanden
+3. Empfänger startet die .exe
+4. Beim ersten Start: Browser wird automatisch heruntergeladen
+5. Fertig!
+
+WICHTIG: Jeder muss beim ersten Start einmal 2-3 Minuten warten
+         für den Browser-Download!
+
+
+💡 ALTERNATIVE: PORTABLE VERSION
+══════════════════════════════════════════════════════════════════
+
+Wenn du willst, dass ALLES schon drin ist (auch der Browser):
+
+Baue die PORTABLE Version:
+  build_portable.bat
+
+Ergebnis: dist_portable\ Ordner (300-500 MB)
+  - Browser ist schon eingebaut
+  - Kein Download beim ersten Start
+  - Einfach entpacken und nutzen
+
+
+🔧 PROBLEME?
+══════════════════════════════════════════════════════════════════
+
+.exe startet nicht:
+  → Antivirus ausschalten
+  → Als Administrator ausführen
+  → Windows Defender: "Zugriff zulassen"
+
+Browser-Installation hängt:
+  → Internet-Verbindung prüfen
+  → Firewall-Einstellungen prüfen
+  → Nochmal starten
+
+"config.yaml not found":
+  → Ist kein Fehler! Die .exe nutzt Default-Einstellungen
+  → Alles funktioniert trotzdem
+
+
+══════════════════════════════════════════════════════════════════
+                    Viel Erfolg! 🎉
+══════════════════════════════════════════════════════════════════

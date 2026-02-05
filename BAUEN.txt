@@ -1,0 +1,58 @@
+═══════════════════════════════════════════════════════
+  Porn Scraper - .exe Datei bauen
+═══════════════════════════════════════════════════════
+
+SO EINFACH GEHTS:
+══════════════════
+
+1. Doppelklick auf:  build_windows.bat
+
+   ODER in Command Prompt:  python build.py
+
+
+2. Warte 3-5 Minuten
+
+
+3. FERTIG! Deine .exe ist in:  dist\PornScraper.exe
+
+
+DAS IST ALLES!
+══════════════
+
+Du bekommst EINE Datei:
+  ✓ dist\PornScraper.exe  (ca. 30-50 MB)
+
+
+NUTZUNG:
+════════
+
+1. Doppelklick auf: PornScraper.exe
+2. Folge dem interaktiven Menü
+3. Fertig!
+
+
+WICHTIG - EINMALIGE EINRICHTUNG:
+═════════════════════════════════
+
+Vor der ersten Nutzung Playwright installieren:
+
+  pip install playwright
+  playwright install chromium
+
+Das muss nur EINMAL gemacht werden!
+Danach funktioniert die .exe überall.
+
+
+WEITERGEBEN:
+════════════
+
+Kopiere einfach:
+  - PornScraper.exe
+  - config.yaml (optional)
+
+Der Empfänger muss auch Playwright installieren (siehe oben).
+
+
+═══════════════════════════════════════════════════════
+Mehr Infos: README_WINDOWS.txt
+═══════════════════════════════════════════════════════
