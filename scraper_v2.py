@@ -277,88 +277,127 @@ class MetadataExtractor:
             except:
                 continue
 
-        # Strategy 3: Heuristic - detect grouped short links that look like tags
-        if len(tags) < 3:
-            heuristic_tags = self._heuristic_tag_extraction(soup)
-            for tag in heuristic_tags:
-                if tag not in tags:
-                    tags.append(tag)
+        # Strategy 3: Heuristic - ALWAYS run as primary detection method
+        # Detects tags by page structure: a group of short-text elements in a container
+        # Works for sites like lamalinks.com, allasianpics.com where tags are visible
+        # on the page but don't use recognizable URL patterns
+        heuristic_tags = self._heuristic_tag_extraction(soup)
+        for tag in heuristic_tags:
+            if tag not in tags:
+                tags.append(tag)
 
         return tags[:50]  # Limit to 50 tags
 
     def _heuristic_tag_extraction(self, soup: BeautifulSoup) -> List[str]:
-        """Find tags using heuristic approach - detect grouped short links"""
-        # Navigation/footer words to filter out
+        """Find tags by detecting grouped short-text elements on the page.
+
+        Looks for containers that have many child elements with short text -
+        the visual pattern of a tag bar/cloud. Works regardless of URL structure.
+        Also handles ul>li>a patterns and non-link elements (spans, etc).
+        """
         nav_words = {
-            'home', 'about', 'contact', 'login', 'register',
+            'home', 'about', 'contact', 'login', 'register', 'sign in', 'sign up',
             'search', 'pornstars', 'sex chat', 'horny girls',
             'tik tok porn', 'amateur cams', 'live cams', 'webcams',
             'dmca', 'privacy', 'terms', '2257', 'sitemap',
-            'welcome', 'help', 'faq', 'menu',
+            'welcome', 'help', 'faq', 'menu', 'rss',
         }
 
         best_tags = []
         best_score = 0
 
-        # Look for containers with multiple tag-like links
-        for container in soup.find_all(['div', 'ul', 'span', 'section', 'p']):
-            # Skip very large containers (likely page wrapper)
-            all_children = container.find_all(True)
-            if len(all_children) > 200:
+        for container in soup.find_all(['div', 'ul', 'ol', 'span', 'section', 'p', 'nav']):
+            # Skip very large containers (page wrappers)
+            all_descendants = container.find_all(True)
+            if len(all_descendants) > 150:
                 continue
 
-            links = container.find_all('a')
+            # Collect direct child elements
+            child_elements = []
+            for child in container.children:
+                if hasattr(child, 'name') and child.name:
+                    child_elements.append(child)
 
-            if len(links) < 3 or len(links) > 50:
+            # Handle ul > li > a pattern: unwrap <li> to get the actual elements
+            if child_elements and sum(1 for c in child_elements if c.name == 'li') > len(child_elements) * 0.5:
+                unwrapped = []
+                for li in child_elements:
+                    if li.name == 'li':
+                        inner = li.find(['a', 'span'])
+                        unwrapped.append(inner if inner else li)
+                    else:
+                        unwrapped.append(li)
+                child_elements = unwrapped
+
+            if len(child_elements) < 3:
                 continue
 
-            # Skip if container has too many non-link elements (not a tag area)
-            if len(all_children) > len(links) * 8:
-                continue
-
-            # Analyze links
+            # Analyze each child element for tag-like text
             valid_tags = []
             nav_count = 0
-            for link in links:
-                text = link.get_text().strip()
-                if not text or len(text) > 30:
+            img_count = 0
+
+            for child in child_elements:
+                if child is None:
                     continue
-                if text.isdigit():
+
+                text = child.get_text().strip()
+
+                if not text or len(text) > 35 or text.isdigit():
                     continue
+
+                # Skip pure thumbnail elements (img but no meaningful text)
+                # BUT keep tags with small avatars (img + text like "Sarah Vandella")
+                if child.find('img') and len(text) < 2:
+                    img_count += 1
+                    continue
+
+                # Skip navigation words
                 if text.lower() in nav_words:
                     nav_count += 1
                     continue
 
-                # Skip links to images
-                href = link.get('href', '')
+                # Skip links pointing to image files
+                href = child.get('href', '') if child.name == 'a' else ''
                 if href and any(ext in href.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
                     continue
 
                 valid_tags.append(text)
 
-            # Skip if too many navigation links
-            if nav_count > 0 and nav_count > len(valid_tags) * 0.5:
+            # Need at least 5 tag-like items for high confidence
+            if len(valid_tags) < 5:
                 continue
 
-            if len(valid_tags) >= 3:
-                # Score this container
-                score = len(valid_tags)
+            # Skip if mostly navigation or thumbnail containers
+            if nav_count > len(valid_tags):
+                continue
+            if img_count > len(valid_tags):
+                continue
 
-                # Bonus for tag-like class names
-                container_classes = ' '.join(container.get('class', []))
-                tag_class_words = ['tag', 'cat', 'label', 'info', 'meta', 'keyword']
-                if any(w in container_classes.lower() for w in tag_class_words):
-                    score *= 3
+            # Score: higher = more likely a real tag bar
+            score = len(valid_tags)
 
-                # Penalty for containers inside header/footer/nav
-                for parent in container.parents:
-                    if parent and parent.name in ['header', 'footer', 'nav']:
-                        score //= 2
+            # Big bonus for tag-related class names on container or parent
+            for elem in [container, container.parent]:
+                if elem and hasattr(elem, 'get'):
+                    classes = ' '.join(elem.get('class', []))
+                    if any(w in classes.lower() for w in ['tag', 'cat', 'label', 'info', 'meta', 'keyword', 'badge']):
+                        score *= 3
                         break
 
-                if score > best_score:
-                    best_score = score
-                    best_tags = valid_tags
+            # Bonus: large tag bars (10+) are very reliable
+            if len(valid_tags) >= 10:
+                score *= 2
+
+            # Penalty for containers in header/footer (likely navigation)
+            for parent in container.parents:
+                if parent and parent.name in ['header', 'footer']:
+                    score //= 3
+                    break
+
+            if score > best_score:
+                best_score = score
+                best_tags = valid_tags
 
         return best_tags
 
