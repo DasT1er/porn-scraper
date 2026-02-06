@@ -133,6 +133,15 @@ class MetadataExtractor:
         # Extract description
         metadata['description'] = self._extract_description(soup)
 
+        # Add source URL to description if not from pornypics.net
+        parsed_url = urlparse(url)
+        if 'pornypics.net' not in parsed_url.netloc:
+            source_note = f"Source: {url}"
+            if metadata['description']:
+                metadata['description'] = f"{metadata['description']}\n\n{source_note}"
+            else:
+                metadata['description'] = source_note
+
         return metadata
 
     def _extract_title(self, soup: BeautifulSoup, url: str) -> str:
@@ -291,9 +300,12 @@ class MetadataExtractor:
     def _heuristic_tag_extraction(self, soup: BeautifulSoup) -> List[str]:
         """Find tags by detecting grouped short-text elements on the page.
 
-        Looks for containers that have many child elements with short text -
-        the visual pattern of a tag bar/cloud. Works regardless of URL structure.
-        Also handles ul>li>a patterns and non-link elements (spans, etc).
+        Uses multiple signals to distinguish real tag bars from directory sections:
+        - "Tags:" label nearby = very strong positive (works for tags after images)
+        - Before gallery images = moderate positive
+        - Heading with directory words = strong negative
+        - Large item count (30+) = negative
+        - Tag-like CSS class = positive
         """
         nav_words = {
             'home', 'about', 'contact', 'login', 'register', 'sign in', 'sign up',
@@ -303,11 +315,38 @@ class MetadataExtractor:
             'welcome', 'help', 'faq', 'menu', 'rss',
         }
 
+        # Words in headings that indicate directory/trending sections (NOT gallery tags)
+        directory_heading_words = [
+            'trending', 'related', 'popular', 'view more', 'more tags',
+            'more pornstar', 'more categor', 'more model',
+            'favourite', 'favorite', 'featured', 'suggested', 'recommended',
+            'top pornstar', 'top model', 'top artist',
+            'all pornstar', 'all model', 'all artist', 'all tag', 'all categor',
+            'similar', 'you may', 'you might',
+        ]
+
+        # Words in class/id that indicate directory sections
+        directory_class_words = [
+            'trending', 'related', 'popular', 'sidebar', 'suggested',
+            'recommended', 'similar', 'favourite', 'favorite', 'featured',
+        ]
+
+        # --- Pre-compute gallery image position ---
+        all_elems = soup.find_all(True)
+        elem_pos = {id(e): i for i, e in enumerate(all_elems)}
+
+        gallery_pos = len(all_elems)
+        img_positions = [i for i, e in enumerate(all_elems) if e.name == 'img']
+        for idx in range(len(img_positions) - 2):
+            if img_positions[idx + 2] - img_positions[idx] < 30:
+                gallery_pos = img_positions[idx]
+                break
+
+        # --- Score each candidate container ---
         best_tags = []
         best_score = 0
 
         for container in soup.find_all(['div', 'ul', 'ol', 'span', 'section', 'p', 'nav']):
-            # Skip very large containers (page wrappers)
             all_descendants = container.find_all(True)
             if len(all_descendants) > 150:
                 continue
@@ -318,7 +357,7 @@ class MetadataExtractor:
                 if hasattr(child, 'name') and child.name:
                     child_elements.append(child)
 
-            # Handle ul > li > a pattern: unwrap <li> to get the actual elements
+            # Handle ul > li > a pattern
             if child_elements and sum(1 for c in child_elements if c.name == 'li') > len(child_elements) * 0.5:
                 unwrapped = []
                 for li in child_elements:
@@ -332,7 +371,7 @@ class MetadataExtractor:
             if len(child_elements) < 3:
                 continue
 
-            # Analyze each child element for tag-like text
+            # Analyze children
             valid_tags = []
             nav_count = 0
             img_count = 0
@@ -340,114 +379,119 @@ class MetadataExtractor:
             for child in child_elements:
                 if child is None:
                     continue
-
                 text = child.get_text().strip()
-
                 if not text or len(text) > 35 or text.isdigit():
                     continue
-
-                # Skip pure thumbnail elements (img but no meaningful text)
-                # BUT keep tags with small avatars (img + text like "Sarah Vandella")
                 if child.find('img') and len(text) < 2:
                     img_count += 1
                     continue
-
-                # Skip navigation words
                 if text.lower() in nav_words:
                     nav_count += 1
                     continue
-
-                # Skip links pointing to image files
                 href = child.get('href', '') if child.name == 'a' else ''
                 if href and any(ext in href.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
                     continue
-
                 valid_tags.append(text)
 
-            # Need at least 5 tag-like items for high confidence
             if len(valid_tags) < 5:
                 continue
-
-            # Skip if mostly navigation or thumbnail containers
             if nav_count > len(valid_tags):
                 continue
             if img_count > len(valid_tags):
                 continue
 
-            # --- Detect trending/related/popular directory sections ---
-            # These are NOT the gallery's own tags!
-            is_directory_section = False
-            directory_words = ['trending', 'related', 'popular', 'sidebar',
-                               'suggested', 'recommended', 'similar', 'more-tags',
-                               'more-pornstar', 'more-categor']
+            # ============ MULTI-SIGNAL SCORING ============
+            n = len(valid_tags)
+            score = 100  # Base score
 
-            # Check class/id of container and up to 2 ancestors
-            check_elems = [container]
-            if container.parent and hasattr(container.parent, 'get'):
-                check_elems.append(container.parent)
-                if container.parent.parent and hasattr(container.parent.parent, 'get'):
-                    check_elems.append(container.parent.parent)
+            # --- Signal 1: "Tags:" / "Categories:" label nearby ---
+            # This is the STRONGEST signal - explicitly marks the tag section
+            has_tag_label = False
+            # Check inline text in container or parent for "Tags:", "Categories:" etc.
+            for check_elem in [container, container.parent]:
+                if not check_elem:
+                    continue
+                for child_node in check_elem.children:
+                    if isinstance(child_node, str):
+                        txt = child_node.strip().lower()
+                        if txt in ('tags:', 'tags', 'categories:', 'categories',
+                                   'keywords:', 'keywords', 'characters:'):
+                            has_tag_label = True
+                            break
+                if has_tag_label:
+                    break
+            # Also check previous sibling text
+            if not has_tag_label:
+                prev = container.find_previous_sibling()
+                if prev:
+                    pt = prev.get_text().strip().lower()
+                    if pt in ('tags:', 'tags', 'categories:', 'categories',
+                              'keywords:', 'keywords', 'characters:'):
+                        has_tag_label = True
 
-            for elem in check_elems:
-                attrs_text = ''
+            if has_tag_label:
+                score += 500
+
+            # --- Signal 2: DOM position (before gallery = moderate bonus) ---
+            container_pos = elem_pos.get(id(container), len(all_elems))
+            if container_pos < gallery_pos:
+                score += 100
+
+            # --- Signal 3: Nearby headings with directory words = strong penalty ---
+            is_directory = False
+            # Check class/id of container and ancestors
+            for elem in [container, container.parent,
+                         container.parent.parent if container.parent else None]:
+                if not elem or not hasattr(elem, 'get'):
+                    continue
+                attrs = ''
                 for attr in ['class', 'id']:
                     val = elem.get(attr, '')
-                    if isinstance(val, list):
-                        attrs_text += ' '.join(val) + ' '
-                    elif val:
-                        attrs_text += str(val) + ' '
-                if any(w in attrs_text.lower() for w in directory_words):
-                    is_directory_section = True
+                    attrs += (' '.join(val) if isinstance(val, list) else str(val)) + ' '
+                if any(w in attrs.lower() for w in directory_class_words):
+                    is_directory = True
                     break
 
-            # Check preceding headings for "Trending", "Related" etc.
-            if not is_directory_section:
+            # Check nearby headings
+            if not is_directory:
                 for check in [container, container.parent]:
-                    if check and hasattr(check, 'find_previous_sibling'):
-                        heading = check.find_previous_sibling(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-                        if heading:
-                            ht = heading.get_text().lower()
-                            if any(w in ht for w in ['trending', 'related', 'popular', 'view more',
-                                                      'more tags', 'more pornstar', 'more categor']):
-                                is_directory_section = True
+                    if not check or not hasattr(check, 'find_previous_sibling'):
+                        continue
+                    # Preceding sibling heading
+                    heading = check.find_previous_sibling(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                    if heading:
+                        ht = heading.get_text().lower()
+                        if any(w in ht for w in directory_heading_words):
+                            is_directory = True
+                            break
+                    # Child heading inside parent
+                    if check.parent and hasattr(check.parent, 'find_all'):
+                        for h in check.parent.find_all(['h2', 'h3', 'h4', 'h5'], recursive=False):
+                            ht = h.get_text().lower()
+                            if any(w in ht for w in directory_heading_words):
+                                is_directory = True
                                 break
-
-            # Check child headings inside parent
-            if not is_directory_section and container.parent and hasattr(container.parent, 'find'):
-                for heading in container.parent.find_all(['h2', 'h3', 'h4', 'h5'], recursive=False):
-                    ht = heading.get_text().lower()
-                    if any(w in ht for w in ['trending', 'related', 'popular', 'view more']):
-                        is_directory_section = True
+                    if is_directory:
                         break
 
-            # --- Scoring ---
-            n = len(valid_tags)
+            if is_directory:
+                score -= 500
 
-            if is_directory_section:
-                score = 1  # Almost never pick directory sections
-            elif n <= 25:
-                score = 100 + n  # Tag bars: 5-25 items
-            else:
-                score = max(1, 50 - n)  # Large lists: heavy penalty
+            # --- Signal 4: Item count preference ---
+            if n <= 20:
+                score += 30  # Typical tag bar size
+            elif n > 30:
+                score -= 100  # Too many items = likely directory
 
-            # Bonus for tag-related class names on container or parent
-            if not is_directory_section:
-                for elem in [container, container.parent]:
-                    if elem and hasattr(elem, 'get'):
-                        classes = ' '.join(elem.get('class', []))
-                        if any(w in classes.lower() for w in ['tag', 'cat', 'label', 'info', 'meta', 'keyword', 'badge']):
-                            score += 200
-                            break
+            # --- Signal 5: Tag-related CSS class names ---
+            for elem in [container, container.parent]:
+                if elem and hasattr(elem, 'get'):
+                    classes = ' '.join(elem.get('class', []))
+                    if any(w in classes.lower() for w in ['tag', 'cat', 'label', 'info', 'meta', 'keyword', 'badge', 'bot']):
+                        score += 200
+                        break
 
-            # Bonus: container appears early in parent (tag bars are near top)
-            preceding = 0
-            for sib in container.previous_siblings:
-                if hasattr(sib, 'name') and sib.name:
-                    preceding += 1
-            if preceding < 5:
-                score += 50
-
-            # Penalty for containers in header/footer
+            # --- Penalty for header/footer ---
             for parent in container.parents:
                 if parent and parent.name in ['header', 'footer']:
                     score //= 3
