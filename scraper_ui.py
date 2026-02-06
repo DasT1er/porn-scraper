@@ -176,7 +176,22 @@ class CategoryDetector:
                     console.print(f"[dim]Loading: {url}[/dim]")
 
                     page.goto(url, wait_until='networkidle', timeout=30000)
-                    page.wait_for_timeout(5000)
+                    page.wait_for_timeout(3000)
+
+                    # Scroll for infinite scroll / lazy-loaded content
+                    console.print(f"[dim]Scrolling to load content...[/dim]")
+                    no_change = 0
+                    for scroll_i in range(20):
+                        prev_h = page.evaluate("document.body.scrollHeight")
+                        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                        page.wait_for_timeout(1500)
+                        new_h = page.evaluate("document.body.scrollHeight")
+                        if new_h == prev_h:
+                            no_change += 1
+                            if no_change >= 2:
+                                break
+                        else:
+                            no_change = 0
 
                     html = page.content()
                     browser.close()
@@ -270,19 +285,38 @@ class CategoryDetector:
                     pass
 
     def _extract_gallery_links(self, soup: BeautifulSoup, base_url: str) -> List[str]:
-        """Extract gallery links from category page"""
+        """Extract gallery links from category page.
+
+        Uses multiple strategies:
+        1. Links matching known gallery URL patterns
+        2. Links wrapping thumbnail images with descriptive slugs
+        3. Links in known gallery container elements
+        """
         gallery_links = []
+        seen_urls = set()
 
         # Safety check
         if not soup:
             return gallery_links
 
+        base_domain = urlparse(base_url).netloc.replace('www.', '')
+        base_path = urlparse(base_url).path.rstrip('/')
+
+        def _add_link(full_url):
+            """Add a gallery link if not seen and not excluded"""
+            normalized = full_url.rstrip('/')
+            if normalized in seen_urls:
+                return
+            if self._is_excluded_link(full_url, base_url):
+                return
+            seen_urls.add(normalized)
+            gallery_links.append(full_url)
+
         # Common patterns for gallery links
-        patterns = [
-            # Links with /gallery/, /comic/, /porncomic/, etc.
-            r'/(gallery|comic|porncomic|comics|album|post|galls|pics)/[^"\']+',
-            # Links that look like gallery IDs
-            r'/\d{5,}/[^"\']*',
+        gallery_patterns = [
+            r'/(gallery|galleries|comic|porncomic|comics|album|post|galls|pics)/[^"\']{10,}',
+            r'/[a-z0-9]+-[a-z0-9-]+-\d{4,}/?$',  # slug-with-numbers
+            r'/\d{5,}/',  # numeric ID
         ]
 
         # Find all links
@@ -293,53 +327,98 @@ class CategoryDetector:
 
         for link in all_links:
             href = link.get('href', '')
-
-            # Skip empty or anchor links
             if not href or href.startswith('#') or href.startswith('javascript:'):
                 continue
 
-            # Check if link matches gallery patterns
-            for pattern in patterns:
-                if re.search(pattern, href):
-                    full_url = urljoin(base_url, href)
+            full_url = urljoin(base_url, href)
+            link_domain = urlparse(full_url).netloc.replace('www.', '')
+            link_path = urlparse(full_url).path.rstrip('/')
 
-                    # Avoid pagination links, filter links, etc.
-                    if not self._is_excluded_link(full_url):
-                        gallery_links.append(full_url)
+            # Skip external links
+            if link_domain != base_domain:
+                continue
+
+            # Skip same page
+            if link_path == base_path:
+                continue
+
+            # Strategy 1: Known gallery URL patterns
+            for pattern in gallery_patterns:
+                if re.search(pattern, link_path):
+                    _add_link(full_url)
                     break
+            else:
+                # Strategy 2: Links wrapping thumbnail images
+                has_thumb = link.find('img') is not None
+                if has_thumb:
+                    slug = link_path.strip('/').split('/')[-1] if '/' in link_path else link_path.strip('/')
+                    # Descriptive gallery slug (long with dashes)
+                    if len(slug) > 10 and slug.count('-') >= 2:
+                        _add_link(full_url)
+                    # Path is deeper/longer than current page
+                    elif len(link_path) > len(base_path) + 5:
+                        _add_link(full_url)
+                    # Multi-segment path with thumbnail
+                    elif len([s for s in link_path.strip('/').split('/') if s]) >= 2:
+                        _add_link(full_url)
 
         # Also try to find links in specific containers
-        gallery_containers = soup.select('.gallery, .post, .item, .comic, .thumb, article')
-
+        gallery_containers = soup.select('.gallery, .post, .item, .comic, .thumb, article, .thumbs, .grid-item')
         for container in gallery_containers:
             link = container.find('a', href=True)
             if link:
                 href = link.get('href', '')
                 if href and not href.startswith('#'):
                     full_url = urljoin(base_url, href)
-                    if not self._is_excluded_link(full_url):
-                        gallery_links.append(full_url)
+                    link_domain = urlparse(full_url).netloc.replace('www.', '')
+                    if link_domain == base_domain:
+                        _add_link(full_url)
 
         return gallery_links
 
-    def _is_excluded_link(self, url: str) -> bool:
-        """Check if link should be excluded"""
+    def _is_excluded_link(self, url: str, base_url: str = '') -> bool:
+        """Check if link should be excluded from gallery listing"""
+        path = urlparse(url).path.lower().rstrip('/')
+
+        # Exclude very short single-segment paths (category pages like /teen/, /milf/)
+        segments = [s for s in path.strip('/').split('/') if s]
+        if len(segments) == 1 and len(segments[0]) < 20:
+            # Short single path = likely a category, not a gallery
+            # Exception: if it contains many dashes (descriptive slug)
+            if segments[0].count('-') < 2:
+                return True
+
         # Exclude pagination, filters, sorts, etc.
         excluded_patterns = [
+            r'^/?$',  # Root
             r'[?&]page=',
             r'[?&]sort=',
             r'[?&]filter=',
             r'[?&]tag=',
             r'/page/\d+/?$',
-            r'/tag/',
-            r'/category/',
+            r'/tag/[^/]+/?$',
+            r'/tags/[^/]+/?$',
+            r'/category/[^/]+/?$',
+            r'/categories/?$',
+            r'/channels/?$',
+            r'/pornstars?/?$',
+            r'/pornstar/[^/]+/?$',
+            r'/models/?$',
+            r'/rnd/',
+            r'/random',
             r'/search',
             r'/login',
             r'/register',
+            r'/dmca',
+            r'/privacy',
+            r'/terms',
+            r'/contact',
+            r'/about',
+            r'/sitemap',
         ]
 
         for pattern in excluded_patterns:
-            if re.search(pattern, url):
+            if re.search(pattern, url) or re.search(pattern, path):
                 return True
 
         return False
