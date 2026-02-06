@@ -144,8 +144,9 @@ class MetadataExtractor:
             for domain in ['pornpics', 'allasianpics', 'lamalinks']:
                 metadata['description'] = re.sub(
                     rf'{domain}\.\w+', 'pornypics.net', metadata['description'])
-        else:
-            # Fallback SEO description if none found
+
+        # Fallback SEO description if none found or too short (<30 chars)
+        if not metadata['description'] or len(metadata['description'].strip()) < 30:
             _default_descriptions = [
                 "Discover the newest porn pictures, sex galleries and adult comics at pornypics.net. Free high-quality nude photos updated daily - never miss the latest content.",
                 "pornypics.net brings you the hottest free porn galleries, nude pictures and adult comics. New content added every day - explore thousands of high-quality images.",
