@@ -123,6 +123,21 @@ foreach ($gal in $galleries) {
             $updatedJson = $updatedJson -replace 'lamalinks\.\w+', 'pornypics.net'
             # "Source: pornypics.net" Zeile komplett entfernen
             $updatedJson = $updatedJson -replace '\\n\\nSource:\s*pornypics\.net', ''
+
+            # 4. Fallback Description wenn leer oder zu kurz (<30 Zeichen)
+            $descMatch = [regex]::Match($updatedJson, '"description":\s*"([^"]*)"')
+            if ($descMatch.Success) {
+                $descValue = $descMatch.Groups[1].Value
+                if ($descValue.Length -lt 30) {
+                    $fallbacks = @(
+                        "Discover the newest porn pictures, sex galleries and adult comics at pornypics.net. Free high-quality nude photos updated daily - never miss the latest content.",
+                        "pornypics.net brings you the hottest free porn galleries, nude pictures and adult comics. New content added every day - explore thousands of high-quality images."
+                    )
+                    $newDesc = $fallbacks | Get-Random
+                    $updatedJson = $updatedJson -replace '"description":\s*"[^"]*"', ('"description": "' + $newDesc + '"')
+                }
+            }
+
             $updatedJson | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 
             Write-Host "    [JSON] Tags + Links bereinigt, Titel: $cleanTitle" -ForegroundColor Green
