@@ -195,7 +195,8 @@ class MetadataExtractor:
 
         # Words to skip (navigation, common non-tag words)
         skip_words = {
-            'tags', 'tag', 'more', 'all', 'category', 'categories',
+            'tags', 'tag', 'tags:', 'categories:', 'keywords:', 'characters:',
+            'more', 'all', 'category', 'categories',
             'home', 'next', 'prev', 'previous', '»', '«', '>', '<',
             'search', 'login', 'register', 'menu',
             'pornstars', 'sex chat', 'horny girls', 'tik tok porn',
@@ -227,14 +228,24 @@ class MetadataExtractor:
             for link in all_links:
                 href = link.get('href', '')
 
+                # Skip person/model links (class="person", data-models attribute)
+                link_classes = link.get('class', [])
+                if 'person' in link_classes or link.get('data-models'):
+                    continue
+
+                # Skip model/pornstar URL patterns - these are people, not tags
+                if any(p in href for p in ['/pornstars/', '/pornstar/', '/models/', '/model/',
+                                           '/actress/', '/performers/', '/performer/']):
+                    continue
+
                 # Direct match patterns (high confidence)
                 if any(p in href for p in ['/category/', '/tag/', '/user_tags/', '/tags/', '/labels/', '/niches/']):
                     _add_tag(link.get_text())
                     continue
 
-                # Pattern with filtering: /pics/, /galleries/, /models/, etc.
+                # Pattern with filtering: /pics/, /galleries/, /channels/
                 # Only match short path segments (tag names, not gallery slugs)
-                for prefix in ['/pics/', '/galleries/', '/models/', '/pornstars/', '/channels/']:
+                for prefix in ['/pics/', '/galleries/', '/channels/']:
                     if prefix in href:
                         # Extract path segment after prefix
                         idx = href.index(prefix) + len(prefix)
@@ -256,6 +267,7 @@ class MetadataExtractor:
             '.label',
             '.badge',
             # Porn site specific
+            '.content-categories a:not(.person)',  # allasianpics, lamalinks
             '.bot a',  # multporn.net uses this!
             '.wp-tag-cloud a',  # WordPress tag cloud
             '.tagcloud a',
@@ -282,6 +294,11 @@ class MetadataExtractor:
             try:
                 elements = soup.select(selector)
                 for elem in elements:
+                    # Skip person/model links (e.g. class="person", data-models attr)
+                    if elem.get('class') and 'person' in elem.get('class', []):
+                        continue
+                    if elem.get('data-models'):
+                        continue
                     _add_tag(elem.get_text())
             except:
                 continue
@@ -292,8 +309,7 @@ class MetadataExtractor:
         # on the page but don't use recognizable URL patterns
         heuristic_tags = self._heuristic_tag_extraction(soup)
         for tag in heuristic_tags:
-            if tag not in tags:
-                tags.append(tag)
+            _add_tag(tag)
 
         return tags[:50]  # Limit to 50 tags
 
@@ -410,6 +426,12 @@ class MetadataExtractor:
                     continue
                 if text.lower() in nav_words:
                     nav_count += 1
+                    continue
+                # Skip person/model entries (class="person", data-models attr)
+                child_classes = child.get('class', []) if hasattr(child, 'get') else []
+                if 'person' in child_classes:
+                    continue
+                if hasattr(child, 'get') and child.get('data-models'):
                     continue
                 href = child.get('href', '') if child.name == 'a' else ''
                 if href and any(ext in href.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
