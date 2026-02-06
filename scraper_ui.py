@@ -84,10 +84,12 @@ class CategoryDetector:
                 soup = None
 
                 # Always try browser first (needed for infinite scroll / JS pages)
+                console.print(f"[cyan]🌐 Loading with browser (for infinite scroll)...[/cyan]")
                 soup = self._fetch_with_browser(current_url)
 
                 # Fallback to requests if browser failed
                 if not soup:
+                    console.print(f"[yellow]⚠ Browser failed, trying requests...[/yellow]")
                     try:
                         response = requests.get(current_url, headers=headers, timeout=30)
                         response.raise_for_status()
@@ -170,19 +172,37 @@ class CategoryDetector:
                     page.wait_for_timeout(3000)
 
                     # Scroll for infinite scroll / lazy-loaded content
-                    console.print(f"[dim]Scrolling to load content...[/dim]")
+                    console.print(f"[cyan]📜 Scrolling to load more galleries...[/cyan]")
+                    prev_link_count = len(page.query_selector_all('a[href] img'))
                     no_change = 0
-                    for scroll_i in range(20):
-                        prev_h = page.evaluate("document.body.scrollHeight")
+
+                    for scroll_i in range(30):
+                        # Scroll to bottom
                         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                        page.wait_for_timeout(1500)
-                        new_h = page.evaluate("document.body.scrollHeight")
-                        if new_h == prev_h:
-                            no_change += 1
-                            if no_change >= 2:
-                                break
-                        else:
+                        page.wait_for_timeout(2000)
+
+                        # Also try clicking "Load more" buttons if present
+                        try:
+                            load_more = page.query_selector('button:has-text("Load"), a:has-text("Load more"), button:has-text("Show more"), .load-more, .show-more')
+                            if load_more and load_more.is_visible():
+                                load_more.click()
+                                page.wait_for_timeout(2000)
+                        except Exception:
+                            pass
+
+                        # Check if new gallery links appeared (more reliable than scrollHeight)
+                        current_link_count = len(page.query_selector_all('a[href] img'))
+
+                        if current_link_count > prev_link_count:
+                            console.print(f"[dim]  Scroll {scroll_i + 1}: {current_link_count} galleries loaded[/dim]")
+                            prev_link_count = current_link_count
                             no_change = 0
+                        else:
+                            no_change += 1
+                            if no_change >= 3:
+                                break
+
+                    console.print(f"[green]✓ {prev_link_count} gallery thumbnails loaded after scrolling[/green]")
 
                     html = page.content()
                     browser.close()
