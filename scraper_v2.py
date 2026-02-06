@@ -301,12 +301,16 @@ class MetadataExtractor:
         """Find tags by detecting grouped short-text elements on the page.
 
         Uses multiple signals to distinguish real tag bars from directory sections:
-        - "Tags:" label nearby = very strong positive (works for tags after images)
-        - Before gallery images = moderate positive
-        - Heading with directory words = strong negative
+        - "Tags:" label nearby = very strong positive
+        - Link URLs pointing to /models/, /pornstars/ = strong negative
+        - Link URLs pointing to /tags/, /category/ = strong positive
+        - Person name pattern (Firstname Lastname) = negative
+        - Directory heading/label nearby = strong negative
         - Large item count (30+) = negative
-        - Tag-like CSS class = positive
+        - Tag-related CSS class = positive
         """
+        import re as _re
+
         nav_words = {
             'home', 'about', 'contact', 'login', 'register', 'sign in', 'sign up',
             'search', 'pornstars', 'sex chat', 'horny girls',
@@ -315,20 +319,35 @@ class MetadataExtractor:
             'welcome', 'help', 'faq', 'menu', 'rss',
         }
 
-        # Words in headings that indicate directory/trending sections (NOT gallery tags)
-        directory_heading_words = [
+        # Words that indicate directory/listing sections (NOT gallery tags)
+        directory_words = [
             'trending', 'related', 'popular', 'view more', 'more tags',
             'more pornstar', 'more categor', 'more model',
             'favourite', 'favorite', 'featured', 'suggested', 'recommended',
             'top pornstar', 'top model', 'top artist',
             'all pornstar', 'all model', 'all artist', 'all tag', 'all categor',
-            'similar', 'you may', 'you might',
+            'similar', 'you may', 'you might', 'best pornstar', 'best model',
+            'pornstar list', 'model list', 'artist list',
         ]
 
         # Words in class/id that indicate directory sections
         directory_class_words = [
             'trending', 'related', 'popular', 'sidebar', 'suggested',
             'recommended', 'similar', 'favourite', 'favorite', 'featured',
+            'pornstar', 'model-list', 'artist',
+        ]
+
+        # URL path segments that indicate model/pornstar links
+        model_url_patterns = [
+            '/models/', '/model/', '/pornstars/', '/pornstar/',
+            '/actress/', '/girls/', '/girl/', '/artists/', '/artist/',
+            '/performers/', '/performer/', '/stars/', '/star/',
+        ]
+
+        # URL path segments that indicate tag/category links
+        tag_url_patterns = [
+            '/tags/', '/tag/', '/category/', '/categories/',
+            '/cat/', '/keywords/', '/keyword/', '/niches/', '/niche/',
         ]
 
         # --- Pre-compute gallery image position ---
@@ -341,6 +360,9 @@ class MetadataExtractor:
             if img_positions[idx + 2] - img_positions[idx] < 30:
                 gallery_pos = img_positions[idx]
                 break
+
+        # Person name regex: 2-3 capitalized words (like "Arisa Nakano")
+        person_name_re = _re.compile(r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}$')
 
         # --- Score each candidate container ---
         best_tags = []
@@ -375,6 +397,7 @@ class MetadataExtractor:
             valid_tags = []
             nav_count = 0
             img_count = 0
+            hrefs = []
 
             for child in child_elements:
                 if child is None:
@@ -392,6 +415,8 @@ class MetadataExtractor:
                 if href and any(ext in href.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
                     continue
                 valid_tags.append(text)
+                if href:
+                    hrefs.append(href.lower())
 
             if len(valid_tags) < 5:
                 continue
@@ -405,40 +430,62 @@ class MetadataExtractor:
             score = 100  # Base score
 
             # --- Signal 1: "Tags:" / "Categories:" label nearby ---
-            # This is the STRONGEST signal - explicitly marks the tag section
             has_tag_label = False
-            # Check inline text in container or parent for "Tags:", "Categories:" etc.
+            tag_label_words = ['tags:', 'tags', 'categories:', 'categories',
+                               'keywords:', 'keywords', 'characters:']
+            # Check inline text in container or parent
             for check_elem in [container, container.parent]:
                 if not check_elem:
                     continue
                 for child_node in check_elem.children:
                     if isinstance(child_node, str):
                         txt = child_node.strip().lower()
-                        if txt in ('tags:', 'tags', 'categories:', 'categories',
-                                   'keywords:', 'keywords', 'characters:'):
+                        if txt in tag_label_words:
+                            has_tag_label = True
+                            break
+                    elif hasattr(child_node, 'name') and child_node.name in ['strong', 'b', 'span', 'label', 'em']:
+                        txt = child_node.get_text().strip().lower()
+                        if txt in tag_label_words:
                             has_tag_label = True
                             break
                 if has_tag_label:
                     break
-            # Also check previous sibling text
+            # Also check previous sibling
             if not has_tag_label:
                 prev = container.find_previous_sibling()
                 if prev:
                     pt = prev.get_text().strip().lower()
-                    if pt in ('tags:', 'tags', 'categories:', 'categories',
-                              'keywords:', 'keywords', 'characters:'):
+                    if pt in tag_label_words:
                         has_tag_label = True
 
             if has_tag_label:
                 score += 500
 
-            # --- Signal 2: DOM position (before gallery = moderate bonus) ---
+            # --- Signal 2: Link URL patterns ---
+            if hrefs:
+                model_link_count = sum(1 for h in hrefs if any(p in h for p in model_url_patterns))
+                tag_link_count = sum(1 for h in hrefs if any(p in h for p in tag_url_patterns))
+
+                if model_link_count > len(hrefs) * 0.3:
+                    score -= 600  # Strong negative: links point to model/pornstar pages
+                if tag_link_count > len(hrefs) * 0.3:
+                    score += 300  # Strong positive: links point to tag/category pages
+
+            # --- Signal 3: Person name detection ---
+            if valid_tags:
+                name_count = sum(1 for t in valid_tags if person_name_re.match(t))
+                name_ratio = name_count / len(valid_tags)
+                if name_ratio > 0.5:
+                    score -= 400  # Most items look like person names
+
+            # --- Signal 4: DOM position (before gallery = moderate bonus) ---
             container_pos = elem_pos.get(id(container), len(all_elems))
             if container_pos < gallery_pos:
                 score += 100
 
-            # --- Signal 3: Nearby headings with directory words = strong penalty ---
+            # --- Signal 5: Nearby directory headings/labels = strong penalty ---
             is_directory = False
+
             # Check class/id of container and ancestors
             for elem in [container, container.parent,
                          container.parent.parent if container.parent else None]:
@@ -452,42 +499,56 @@ class MetadataExtractor:
                     is_directory = True
                     break
 
-            # Check nearby headings
+            # Broad text search: check ANY element near the container for directory words
+            # This catches headings inside wrapper divs, <span>, <strong>, etc.
             if not is_directory:
+                # Check preceding siblings of container and its parent (any element, not just headings)
                 for check in [container, container.parent]:
                     if not check or not hasattr(check, 'find_previous_sibling'):
                         continue
-                    # Preceding sibling heading
-                    heading = check.find_previous_sibling(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-                    if heading:
-                        ht = heading.get_text().lower()
-                        if any(w in ht for w in directory_heading_words):
+                    for sib in check.previous_siblings:
+                        if not hasattr(sib, 'get_text'):
+                            continue
+                        sib_text = sib.get_text().strip().lower()
+                        if len(sib_text) > 100:
+                            break  # Stop at large content blocks
+                        if any(w in sib_text for w in directory_words):
                             is_directory = True
                             break
-                    # Child heading inside parent
-                    if check.parent and hasattr(check.parent, 'find_all'):
-                        for h in check.parent.find_all(['h2', 'h3', 'h4', 'h5'], recursive=False):
-                            ht = h.get_text().lower()
-                            if any(w in ht for w in directory_heading_words):
-                                is_directory = True
-                                break
                     if is_directory:
                         break
+
+                # Check headings inside parent wrapper
+                if not is_directory:
+                    for check in [container, container.parent]:
+                        if not check or not hasattr(check, 'parent') or not check.parent:
+                            continue
+                        parent = check.parent
+                        if hasattr(parent, 'find_all'):
+                            for child in parent.find_all(True, recursive=False):
+                                if child == check or child == container:
+                                    continue
+                                txt = child.get_text().strip().lower()
+                                if len(txt) < 80 and any(w in txt for w in directory_words):
+                                    is_directory = True
+                                    break
+                        if is_directory:
+                            break
 
             if is_directory:
                 score -= 500
 
-            # --- Signal 4: Item count preference ---
+            # --- Signal 6: Item count preference ---
             if n <= 20:
                 score += 30  # Typical tag bar size
             elif n > 30:
                 score -= 100  # Too many items = likely directory
 
-            # --- Signal 5: Tag-related CSS class names ---
+            # --- Signal 7: Tag-related CSS class names ---
             for elem in [container, container.parent]:
                 if elem and hasattr(elem, 'get'):
                     classes = ' '.join(elem.get('class', []))
-                    if any(w in classes.lower() for w in ['tag', 'cat', 'label', 'info', 'meta', 'keyword', 'badge', 'bot']):
+                    if any(w in classes.lower() for w in ['tag', 'cat', 'label', 'info', 'meta', 'keyword', 'badge']):
                         score += 200
                         break
 
