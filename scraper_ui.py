@@ -67,7 +67,6 @@ class CategoryDetector:
         visited_urls = set()
         current_url = category_url
         page_num = 1
-        use_browser = False  # Start with requests, switch to browser if needed
 
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -82,28 +81,19 @@ class CategoryDetector:
             try:
                 console.print(f"[cyan]📄 Scanning page {page_num}...[/cyan]")
 
-                # Try to fetch the page
                 soup = None
 
-                if not use_browser:
-                    # Try with requests first
+                # Always try browser first (needed for infinite scroll / JS pages)
+                soup = self._fetch_with_browser(current_url)
+
+                # Fallback to requests if browser failed
+                if not soup:
                     try:
                         response = requests.get(current_url, headers=headers, timeout=30)
-
-                        # If we get 403 or similar, switch to browser mode
-                        if response.status_code in [403, 401, 429]:
-                            console.print(f"[yellow]⚠ Access blocked (HTTP {response.status_code}), switching to Browser mode...[/yellow]")
-                            use_browser = True
-                        else:
-                            response.raise_for_status()
-                            soup = BeautifulSoup(response.text, 'html.parser')
-                    except requests.exceptions.RequestException as e:
-                        console.print(f"[yellow]⚠ Request failed: {e}, switching to Browser mode...[/yellow]")
-                        use_browser = True
-
-                # Use browser mode if needed
-                if use_browser:
-                    soup = self._fetch_with_browser(current_url)
+                        response.raise_for_status()
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                    except Exception:
+                        pass
 
                 if not soup:
                     console.print(f"[red]✗ Failed to fetch page {page_num}[/red]")
@@ -122,6 +112,7 @@ class CategoryDetector:
                     current_url = next_url
                     page_num += 1
                 else:
+                    console.print(f"[dim]  → No next page link found[/dim]")
                     break
 
             except Exception as e:
@@ -404,6 +395,7 @@ class CategoryDetector:
             r'/pornstars?/?$',
             r'/pornstar/[^/]+/?$',
             r'/models/?$',
+            r'/api/',
             r'/rnd/',
             r'/random',
             r'/search',
