@@ -144,15 +144,6 @@ class MetadataExtractor:
                 metadata['description'] = re.sub(
                     rf'{domain}\.\w+', 'pornypics.net', metadata['description'])
 
-        # Add source URL to description if not from pornypics.net
-        parsed_url = urlparse(url)
-        if 'pornypics.net' not in parsed_url.netloc:
-            source_note = "Source: pornypics.net"
-            if metadata['description']:
-                metadata['description'] = f"{metadata['description']}\n\n{source_note}"
-            else:
-                metadata['description'] = source_note
-
         return metadata
 
     def _extract_title(self, soup: BeautifulSoup, url: str) -> str:

@@ -121,6 +121,8 @@ foreach ($gal in $galleries) {
             $updatedJson = $updatedJson -replace 'pornpics\.\w+', 'pornypics.net'
             $updatedJson = $updatedJson -replace 'allasianpics\.\w+', 'pornypics.net'
             $updatedJson = $updatedJson -replace 'lamalinks\.\w+', 'pornypics.net'
+            # "Source: pornypics.net" Zeile komplett entfernen
+            $updatedJson = $updatedJson -replace '\\n\\nSource:\s*pornypics\.net', ''
             $updatedJson | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 
             Write-Host "    [JSON] Tags + Links bereinigt, Titel: $cleanTitle" -ForegroundColor Green
