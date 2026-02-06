@@ -45,11 +45,11 @@ scraper:
   wait_for_images: true
 
   # Minimum image size to download (in KB)
-  min_image_size: 50
+  min_image_size: 15
 
   # Minimum image dimensions (width x height)
-  min_width: 500
-  min_height: 500
+  min_width: 400
+  min_height: 400
 
 # Gallery Detection
 detection:

@@ -374,22 +374,80 @@ class MetadataExtractor:
             if img_count > len(valid_tags):
                 continue
 
-            # Score: higher = more likely a real tag bar
-            score = len(valid_tags)
+            # --- Detect trending/related/popular directory sections ---
+            # These are NOT the gallery's own tags!
+            is_directory_section = False
+            directory_words = ['trending', 'related', 'popular', 'sidebar',
+                               'suggested', 'recommended', 'similar', 'more-tags',
+                               'more-pornstar', 'more-categor']
 
-            # Big bonus for tag-related class names on container or parent
-            for elem in [container, container.parent]:
-                if elem and hasattr(elem, 'get'):
-                    classes = ' '.join(elem.get('class', []))
-                    if any(w in classes.lower() for w in ['tag', 'cat', 'label', 'info', 'meta', 'keyword', 'badge']):
-                        score *= 3
+            # Check class/id of container and up to 2 ancestors
+            check_elems = [container]
+            if container.parent and hasattr(container.parent, 'get'):
+                check_elems.append(container.parent)
+                if container.parent.parent and hasattr(container.parent.parent, 'get'):
+                    check_elems.append(container.parent.parent)
+
+            for elem in check_elems:
+                attrs_text = ''
+                for attr in ['class', 'id']:
+                    val = elem.get(attr, '')
+                    if isinstance(val, list):
+                        attrs_text += ' '.join(val) + ' '
+                    elif val:
+                        attrs_text += str(val) + ' '
+                if any(w in attrs_text.lower() for w in directory_words):
+                    is_directory_section = True
+                    break
+
+            # Check preceding headings for "Trending", "Related" etc.
+            if not is_directory_section:
+                for check in [container, container.parent]:
+                    if check and hasattr(check, 'find_previous_sibling'):
+                        heading = check.find_previous_sibling(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                        if heading:
+                            ht = heading.get_text().lower()
+                            if any(w in ht for w in ['trending', 'related', 'popular', 'view more',
+                                                      'more tags', 'more pornstar', 'more categor']):
+                                is_directory_section = True
+                                break
+
+            # Check child headings inside parent
+            if not is_directory_section and container.parent and hasattr(container.parent, 'find'):
+                for heading in container.parent.find_all(['h2', 'h3', 'h4', 'h5'], recursive=False):
+                    ht = heading.get_text().lower()
+                    if any(w in ht for w in ['trending', 'related', 'popular', 'view more']):
+                        is_directory_section = True
                         break
 
-            # Bonus: large tag bars (10+) are very reliable
-            if len(valid_tags) >= 10:
-                score *= 2
+            # --- Scoring ---
+            n = len(valid_tags)
 
-            # Penalty for containers in header/footer (likely navigation)
+            if is_directory_section:
+                score = 1  # Almost never pick directory sections
+            elif n <= 25:
+                score = 100 + n  # Tag bars: 5-25 items
+            else:
+                score = max(1, 50 - n)  # Large lists: heavy penalty
+
+            # Bonus for tag-related class names on container or parent
+            if not is_directory_section:
+                for elem in [container, container.parent]:
+                    if elem and hasattr(elem, 'get'):
+                        classes = ' '.join(elem.get('class', []))
+                        if any(w in classes.lower() for w in ['tag', 'cat', 'label', 'info', 'meta', 'keyword', 'badge']):
+                            score += 200
+                            break
+
+            # Bonus: container appears early in parent (tag bars are near top)
+            preceding = 0
+            for sib in container.previous_siblings:
+                if hasattr(sib, 'name') and sib.name:
+                    preceding += 1
+            if preceding < 5:
+                score += 50
+
+            # Penalty for containers in header/footer
             for parent in container.parents:
                 if parent and parent.name in ['header', 'footer']:
                     score //= 3
@@ -602,37 +660,64 @@ class GalleryDetector:
         return None
 
     def _extract_images_from_container(self, container, base_url: str) -> List[str]:
-        """Extract all image URLs from a container"""
+        """Extract all image URLs from a container.
+        Prefers full-size URLs from <a href> over thumbnail URLs from <img src>.
+        When <a> wraps <img>, uses the link URL (full-size) and skips the img (thumbnail).
+        """
         images = []
+        seen_urls = set()
+        thumbnail_urls = set()  # Track thumbnails that have a full-size link
 
-        # Find all img tags
-        for img in container.find_all('img'):
-            img_url = self._get_best_image_url(img, base_url)
-            if img_url:
-                images.append(img_url)
-
-        # Also check for links to images
+        # Pass 1: Find <a> tags that link to images - these are full-size URLs
         for link in container.find_all('a'):
             href = link.get('href', '')
             if self._is_image_url(href):
-                images.append(urljoin(base_url, href))
+                full_url = urljoin(base_url, href)
+                if full_url not in seen_urls:
+                    images.append(full_url)
+                    seen_urls.add(full_url)
+                    # Mark any <img> inside this <a> as a thumbnail (skip later)
+                    for img in link.find_all('img'):
+                        thumb_url = self._get_best_image_url(img, base_url)
+                        if thumb_url:
+                            thumbnail_urls.add(thumb_url)
+
+        # Pass 2: Find <img> tags NOT already covered by <a> links
+        for img in container.find_all('img'):
+            img_url = self._get_best_image_url(img, base_url)
+            if img_url and img_url not in seen_urls and img_url not in thumbnail_urls:
+                images.append(img_url)
+                seen_urls.add(img_url)
 
         return images
 
     def _find_all_images(self, soup: BeautifulSoup, base_url: str) -> List[str]:
-        """Find all images on the page"""
+        """Find all images on the page.
+        Same logic: prefers <a href> full-size over <img src> thumbnails.
+        """
         images = []
+        seen_urls = set()
+        thumbnail_urls = set()
 
-        for img in soup.find_all('img'):
-            img_url = self._get_best_image_url(img, base_url)
-            if img_url:
-                images.append(img_url)
-
-        # Check links to images
+        # Pass 1: <a> links to images (full-size)
         for link in soup.find_all('a'):
             href = link.get('href', '')
             if self._is_image_url(href):
-                images.append(urljoin(base_url, href))
+                full_url = urljoin(base_url, href)
+                if full_url not in seen_urls:
+                    images.append(full_url)
+                    seen_urls.add(full_url)
+                    for img in link.find_all('img'):
+                        thumb_url = self._get_best_image_url(img, base_url)
+                        if thumb_url:
+                            thumbnail_urls.add(thumb_url)
+
+        # Pass 2: <img> tags not covered by <a> links
+        for img in soup.find_all('img'):
+            img_url = self._get_best_image_url(img, base_url)
+            if img_url and img_url not in seen_urls and img_url not in thumbnail_urls:
+                images.append(img_url)
+                seen_urls.add(img_url)
 
         return images
 
@@ -706,9 +791,9 @@ class ImageDownloader:
     def __init__(self, config: dict):
         self.config = config
         self.download_config = config.get('download', {})
-        self.min_size = config['scraper'].get('min_image_size', 50) * 1024  # KB to bytes
-        self.min_width = config['scraper'].get('min_width', 500)
-        self.min_height = config['scraper'].get('min_height', 500)
+        self.min_size = config['scraper'].get('min_image_size', 15) * 1024  # KB to bytes
+        self.min_width = config['scraper'].get('min_width', 400)
+        self.min_height = config['scraper'].get('min_height', 400)
 
         # Show warning if Pillow is not available
         if not HAS_PILLOW:
