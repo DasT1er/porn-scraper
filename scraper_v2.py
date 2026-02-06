@@ -133,6 +133,17 @@ class MetadataExtractor:
         # Extract description
         metadata['description'] = self._extract_description(soup)
 
+        # Replace competitor domain mentions in description
+        if metadata['description']:
+            # Replace full URLs with just "pornypics.net"
+            metadata['description'] = re.sub(
+                r'https?://[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(?:/[^\s\"\,\}\]]*)?',
+                'pornypics.net', metadata['description'])
+            # Replace competitor domain text mentions
+            for domain in ['pornpics', 'allasianpics', 'lamalinks']:
+                metadata['description'] = re.sub(
+                    rf'{domain}\.\w+', 'pornypics.net', metadata['description'])
+
         # Add source URL to description if not from pornypics.net
         parsed_url = urlparse(url)
         if 'pornypics.net' not in parsed_url.netloc:

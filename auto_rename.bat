@@ -113,10 +113,14 @@ foreach ($gal in $galleries) {
             $updatedJson = $jsonRaw -replace '"tags":\s*\[[\s\S]*?\]', $newTagLine
             $updatedJson | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 
-            # 3. Links ersetzen: Alle Links die NICHT pornypics.net sind -> nur "pornypics.net"
+            # 3. Links und Domains ersetzen -> "pornypics.net"
             $updatedJson = Get-Content -LiteralPath $jsonPath -Raw
-            $linkRegex = 'https?://(?!(?:www\.)?pornypics\.net)[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(?:/[^\s\"\,\}\]]*)?'
-            $updatedJson = [regex]::Replace($updatedJson, $linkRegex, 'pornypics.net')
+            # Alle vollstaendigen URLs (auch pornypics.net mit Pfad) -> nur "pornypics.net"
+            $updatedJson = [regex]::Replace($updatedJson, 'https?://[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(?:/[^\s\"\,\}\]]*)?', 'pornypics.net')
+            # Domain-Erwaehungen im Text (z.B. "at pornpics.de") -> "pornypics.net"
+            $updatedJson = $updatedJson -replace 'pornpics\.\w+', 'pornypics.net'
+            $updatedJson = $updatedJson -replace 'allasianpics\.\w+', 'pornypics.net'
+            $updatedJson = $updatedJson -replace 'lamalinks\.\w+', 'pornypics.net'
             $updatedJson | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 
             Write-Host "    [JSON] Tags + Links bereinigt, Titel: $cleanTitle" -ForegroundColor Green
