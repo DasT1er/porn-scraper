@@ -113,20 +113,10 @@ foreach ($gal in $galleries) {
             $updatedJson = $jsonRaw -replace '"tags":\s*\[[\s\S]*?\]', $newTagLine
             $updatedJson | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 
-            # 3. Links ersetzen: Alle Links die NICHT pornypics.net sind -> pornypics.net
+            # 3. Links ersetzen: Alle Links die NICHT pornypics.net sind -> nur "pornypics.net"
             $updatedJson = Get-Content -LiteralPath $jsonPath -Raw
             $linkRegex = 'https?://(?!(?:www\.)?pornypics\.net)[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(?:/[^\s\"\,\}\]]*)?'
-            $updatedJson = [regex]::Replace($updatedJson, $linkRegex, {
-                param($match)
-                $oldUrl = $match.Value
-                try {
-                    $uri = [System.Uri]$oldUrl
-                    $newUrl = "https://pornypics.net" + $uri.PathAndQuery
-                    return $newUrl
-                } catch {
-                    return $oldUrl
-                }
-            })
+            $updatedJson = [regex]::Replace($updatedJson, $linkRegex, 'pornypics.net')
             $updatedJson | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 
             Write-Host "    [JSON] Tags + Links bereinigt, Titel: $cleanTitle" -ForegroundColor Green

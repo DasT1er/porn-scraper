@@ -136,7 +136,7 @@ class MetadataExtractor:
         # Add source URL to description if not from pornypics.net
         parsed_url = urlparse(url)
         if 'pornypics.net' not in parsed_url.netloc:
-            source_note = f"Source: {url}"
+            source_note = "Source: pornypics.net"
             if metadata['description']:
                 metadata['description'] = f"{metadata['description']}\n\n{source_note}"
             else:
