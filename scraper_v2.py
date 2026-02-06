@@ -6,6 +6,7 @@ Uses Requests for simple pages, Playwright for JavaScript-heavy pages
 """
 
 import asyncio
+import random
 import re
 import time
 import json
@@ -143,6 +144,13 @@ class MetadataExtractor:
             for domain in ['pornpics', 'allasianpics', 'lamalinks']:
                 metadata['description'] = re.sub(
                     rf'{domain}\.\w+', 'pornypics.net', metadata['description'])
+        else:
+            # Fallback SEO description if none found
+            _default_descriptions = [
+                "Discover the newest porn pictures, sex galleries and adult comics at pornypics.net. Free high-quality nude photos updated daily - never miss the latest content.",
+                "pornypics.net brings you the hottest free porn galleries, nude pictures and adult comics. New content added every day - explore thousands of high-quality images.",
+            ]
+            metadata['description'] = random.choice(_default_descriptions)
 
         return metadata
 
