@@ -1201,8 +1201,26 @@ class HybridScraper:
 
             all_images = await self._scrape_with_playwright(url)
 
+        # Check if this is a listing/category page (before downloading images)
+        if not _from_listing:
+            # Quick HTML fetch to check page structure
+            listing_soup = None
+            try:
+                headers = {'User-Agent': self.config['scraper'].get('user_agent', 'Mozilla/5.0')}
+                resp = requests.get(url, headers=headers, timeout=15)
+                if resp.status_code == 200:
+                    listing_soup = BeautifulSoup(resp.text, 'html.parser')
+            except Exception:
+                pass
+
+            if listing_soup and self._is_listing_page(listing_soup, url):
+                console.print("[cyan]🔍 Detected listing/category page with gallery grid![/cyan]")
+                listing_handled = await self._try_as_listing_page(url, output_dir, mode)
+                if listing_handled:
+                    return
+
         if not all_images:
-            # Before giving up, check if this is a listing/category page
+            # Before giving up, also check if this is a listing/category page
             if not _from_listing:
                 listing_handled = await self._try_as_listing_page(url, output_dir, mode)
                 if listing_handled:
@@ -1544,16 +1562,8 @@ class HybridScraper:
 
         soup = None
 
-        # Try fetching with requests first
-        try:
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
-        except Exception:
-            pass
-
-        # If requests failed, try with Playwright
-        if not soup and HAS_PLAYWRIGHT:
+        # Try with Playwright first (better for JS-rendered infinite scroll pages)
+        if HAS_PLAYWRIGHT:
             try:
                 async with async_playwright() as p:
                     launch_options = {
@@ -1569,14 +1579,24 @@ class HybridScraper:
                     await page.goto(url, wait_until='networkidle', timeout=30000)
                     await page.wait_for_timeout(3000)
 
-                    # Scroll to load more content
-                    await self._scroll_page(page)
+                    # Scroll multiple times to load infinite scroll content
+                    console.print("[cyan]📜 Scrolling to load galleries...[/cyan]")
+                    await self._scroll_page(page, max_scrolls=20)
 
                     html = await page.content()
                     soup = BeautifulSoup(html, 'html.parser')
                     await browser.close()
             except Exception as e:
                 console.print(f"[dim]Browser fetch failed: {e}[/dim]")
+
+        # Fallback to requests
+        if not soup:
+            try:
+                response = requests.get(url, headers=headers, timeout=30)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.text, 'html.parser')
+            except Exception:
+                pass
 
         if not soup:
             return False
@@ -1617,12 +1637,55 @@ class HybridScraper:
         console.print(f"\n[bold green]✨ Listing page complete! ({len(gallery_links)} galleries)[/bold green]")
         return True
 
+    def _is_listing_page(self, soup: BeautifulSoup, url: str) -> bool:
+        """Detect if a page is a listing/category page (grid of gallery thumbnails)
+        rather than an actual gallery with full-size images.
+
+        Key signal: many <a> tags wrapping <img> thumbnails that link to OTHER internal pages.
+        """
+        base_domain = urlparse(url).netloc.replace('www.', '')
+        base_path = urlparse(url).path.rstrip('/')
+
+        thumb_link_count = 0
+        total_images = len(soup.find_all('img'))
+
+        for link in soup.find_all('a', href=True):
+            href = link.get('href', '')
+            if not href or href.startswith('#') or href.startswith('javascript:'):
+                continue
+
+            # Must wrap an image
+            if not link.find('img'):
+                continue
+
+            full_url = urljoin(url, href)
+            link_path = urlparse(full_url).path.rstrip('/')
+            link_domain = urlparse(full_url).netloc.replace('www.', '')
+
+            # Must be same domain
+            if link_domain != base_domain:
+                continue
+
+            # Must link to a different page (not same page, not image file)
+            if link_path == base_path:
+                continue
+            if any(link_path.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                continue
+
+            # Must be longer/deeper than current path (gallery links are more specific)
+            if len(link_path) > len(base_path) + 5:
+                thumb_link_count += 1
+
+        # If more than 5 thumbnail links to internal pages, it's likely a listing page
+        return thumb_link_count >= 5
+
     def _extract_listing_gallery_links(self, soup: BeautifulSoup, base_url: str) -> List[str]:
         """Extract gallery links from a listing/category page"""
         gallery_links = []
         seen_urls = set()
 
         base_domain = urlparse(base_url).netloc.replace('www.', '')
+        base_path = urlparse(base_url).path.rstrip('/')
 
         for link in soup.find_all('a', href=True):
             href = link.get('href', '')
@@ -1667,10 +1730,21 @@ class HybridScraper:
                     is_gallery_like = True
                     break
 
-            # Also consider links with long descriptive slugs that wrap images
-            if not is_gallery_like and has_thumb and len(path) > 15:
+            # Links wrapping thumbnails with descriptive slugs
+            if not is_gallery_like and has_thumb:
                 slug = path.strip('/').split('/')[-1] if '/' in path else path.strip('/')
-                if len(slug) > 15 and slug.count('-') >= 3:
+                # Gallery link: slug longer than 10 chars with dashes (descriptive title)
+                if len(slug) > 10 and slug.count('-') >= 2:
+                    is_gallery_like = True
+                # Gallery link: path is deeper/longer than current page
+                elif len(path.rstrip('/')) > len(base_path) + 5:
+                    is_gallery_like = True
+
+            # Links with thumbnail and longer path than base (catch-all for thumb grids)
+            if not is_gallery_like and has_thumb and len(path) > 10:
+                # Skip very short paths (single segment like /teen/, /milf/)
+                segments = [s for s in path.strip('/').split('/') if s]
+                if len(segments) >= 2 or (len(segments) == 1 and len(segments[0]) > 20):
                     is_gallery_like = True
 
             if is_gallery_like:
@@ -1691,7 +1765,13 @@ class HybridScraper:
             r'[?&]filter=',
             r'/page/\d+/?$',
             r'/tag/[^/]+/?$',
+            r'/tags/[^/]+/?$',
             r'/category/[^/]+/?$',
+            r'/categories/?$',
+            r'/channels/?$',
+            r'/pornstars/?$',
+            r'/pornstar/[^/]+/?$',
+            r'/models/?$',
             r'/search',
             r'/login',
             r'/register',
@@ -1709,27 +1789,32 @@ class HybridScraper:
 
         return False
 
-    async def _scroll_page(self, page):
-        """Scroll page to load lazy-loaded content"""
+    async def _scroll_page(self, page, max_scrolls: int = 15):
+        """Scroll page to load lazy-loaded / infinite scroll content.
+
+        Scrolls multiple rounds, detecting when new content loads.
+        Stops when no new content appears or max_scrolls reached.
+        """
         try:
-            await page.evaluate("""
-                () => {
-                    return new Promise((resolve) => {
-                        let totalHeight = 0;
-                        const distance = 300;
-                        const timer = setInterval(() => {
-                            const scrollHeight = document.body.scrollHeight;
-                            window.scrollBy(0, distance);
-                            totalHeight += distance;
-                            if (totalHeight >= scrollHeight) {
-                                clearInterval(timer);
-                                resolve();
-                            }
-                        }, 100);
-                    });
-                }
-            """)
-            await page.wait_for_timeout(1000)
+            prev_height = 0
+            no_change_count = 0
+
+            for i in range(max_scrolls):
+                # Scroll to bottom
+                current_height = await page.evaluate("document.body.scrollHeight")
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_timeout(1500)  # Wait for new content to load
+
+                # Check if new content appeared
+                new_height = await page.evaluate("document.body.scrollHeight")
+                if new_height == current_height:
+                    no_change_count += 1
+                    if no_change_count >= 2:
+                        break  # No new content after 2 tries
+                else:
+                    no_change_count = 0
+
+                prev_height = new_height
         except Exception:
             pass
 
