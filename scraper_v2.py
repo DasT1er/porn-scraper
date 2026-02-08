@@ -839,6 +839,7 @@ class GalleryDetector:
         """Extract all image URLs from a container.
         Prefers full-size URLs from <a href> over thumbnail URLs from <img src>.
         When <a> wraps <img>, uses the link URL (full-size) and skips the img (thumbnail).
+        Container was already carefully selected, so trust its contents.
         """
         images = []
         seen_urls = set()
@@ -846,8 +847,6 @@ class GalleryDetector:
 
         # Pass 1: Find <a> tags that link to images - these are full-size URLs
         for link in container.find_all('a'):
-            if self._is_in_excluded_section(link):
-                continue
             href = link.get('href', '')
             if self._is_image_url(href):
                 full_url = urljoin(base_url, href)
@@ -862,8 +861,6 @@ class GalleryDetector:
 
         # Pass 2: Find <img> tags NOT already covered by <a> links
         for img in container.find_all('img'):
-            if self._is_in_excluded_section(img):
-                continue
             img_url = self._get_best_image_url(img, base_url)
             if img_url and img_url not in seen_urls and img_url not in thumbnail_urls:
                 images.append(img_url)
