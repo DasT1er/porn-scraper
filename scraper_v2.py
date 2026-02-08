@@ -1269,8 +1269,10 @@ class HybridScraper:
 
             all_images = await self._scrape_with_playwright(url)
 
-        # Check if this is a listing/category page (before downloading images)
-        if not _from_listing:
+        # Check if this is a listing/category page ONLY if few images found
+        # A page with many images is a gallery, not a listing page
+        min_images = self.config['scraper'].get('min_images_threshold', 5)
+        if not _from_listing and len(all_images) < min_images:
             # Quick HTML fetch to check page structure
             listing_soup = None
             try:
@@ -1852,6 +1854,11 @@ class HybridScraper:
             r'/contact',
             r'/about',
             r'/sitemap',
+            r'/comment/',
+            r'/reply/',
+            r'/node/\d+/\d+',
+            r'/user/',
+            r'/simple$',
         ]
 
         for pattern in excluded_patterns:
