@@ -961,6 +961,18 @@ class ImageDownloader:
             console.print("[yellow]  Only file size will be checked. Install Pillow for full validation:[/yellow]")
             console.print("[yellow]  pip install Pillow --prefer-binary[/yellow]\n")
 
+    def set_comic_mode(self, url: str):
+        """Detect comic URLs and lower thresholds so comic pages aren't skipped"""
+        comic_patterns = ['/comics/', '/comic/', 'multporn', 'hentai', 'manga',
+                          'doujin', 'rule34', 'paheal', 'gelbooru', 'e621',
+                          'nhentai', 'hitomi', 'imhentai']
+        is_comic = any(p in url.lower() for p in comic_patterns)
+        if is_comic:
+            self.min_size = 3 * 1024  # 3 KB
+            self.min_width = 100
+            self.min_height = 100
+            console.print("[cyan]🎨 Comic mode: lower size filters to keep all pages[/cyan]")
+
     async def download_images(
         self,
         image_urls: List[str],
@@ -1263,6 +1275,9 @@ class HybridScraper:
             return
 
         console.print(f"\n[bold green]✓ Total unique images found: {len(all_images)}[/bold green]\n")
+
+        # Detect comic pages and lower filters
+        self.downloader.set_comic_mode(url)
 
         # Download images
         with Progress(
