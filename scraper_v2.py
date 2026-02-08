@@ -6,6 +6,7 @@ Uses Requests for simple pages, Playwright for JavaScript-heavy pages
 """
 
 import asyncio
+import random
 import re
 import time
 import json
@@ -133,6 +134,25 @@ class MetadataExtractor:
         # Extract description
         metadata['description'] = self._extract_description(soup)
 
+        # Replace competitor domain mentions in description
+        if metadata['description']:
+            # Replace full URLs with just "pornypics.net"
+            metadata['description'] = re.sub(
+                r'https?://[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(?:/[^\s\"\,\}\]]*)?',
+                'pornypics.net', metadata['description'])
+            # Replace competitor domain text mentions
+            for domain in ['pornpics', 'allasianpics', 'lamalinks']:
+                metadata['description'] = re.sub(
+                    rf'{domain}\.\w+', 'pornypics.net', metadata['description'])
+
+        # Fallback SEO description if none found or too short (<30 chars)
+        if not metadata['description'] or len(metadata['description'].strip()) < 30:
+            _default_descriptions = [
+                "Discover the newest porn pictures, sex galleries and adult comics at pornypics.net. Free high-quality nude photos updated daily - never miss the latest content.",
+                "pornypics.net brings you the hottest free porn galleries, nude pictures and adult comics. New content added every day - explore thousands of high-quality images.",
+            ]
+            metadata['description'] = random.choice(_default_descriptions)
+
         return metadata
 
     def _extract_title(self, soup: BeautifulSoup, url: str) -> str:
@@ -184,24 +204,71 @@ class MetadataExtractor:
         """Extract tags from page"""
         tags = []
 
-        # Strategy 1: Find links with /category/ or /tag/ URLs (multporn.net style)
+        # Words to skip (navigation, common non-tag words)
+        skip_words = {
+            'tags', 'tag', 'tags:', 'categories:', 'keywords:', 'characters:',
+            'more', 'all', 'category', 'categories',
+            'home', 'next', 'prev', 'previous', '»', '«', '>', '<',
+            'search', 'login', 'register', 'menu',
+            'pornstars', 'sex chat', 'horny girls', 'tik tok porn',
+            'amateur cams', 'live cams', 'webcams', 'welcome',
+            'dmca', 'privacy', 'terms', '2257', 'sitemap',
+            'contact', 'about', 'help', 'faq',
+        }
+
+        def _is_valid_tag(text):
+            text = text.strip()
+            if not text or len(text) < 2 or len(text) > 40:
+                return False
+            if text.isdigit():
+                return False
+            if text.lower() in skip_words:
+                return False
+            return True
+
+        def _add_tag(text):
+            text = text.strip()
+            text = text.replace(',', '').replace(';', '').replace('#', '')
+            text = re.sub(r'\s+', ' ', text)
+            if _is_valid_tag(text) and text not in tags:
+                tags.append(text)
+
+        # Strategy 1: Find links with tag-like URL patterns
         try:
             all_links = soup.find_all('a', href=True)
             for link in all_links:
                 href = link.get('href', '')
-                # Check for category/tag URLs
-                if '/category/' in href or '/tag/' in href or '/user_tags/' in href:
-                    tag = link.get_text().strip()
-                    # Clean up tag
-                    tag = tag.replace(',', '').replace(';', '').replace('#', '')
-                    if tag and len(tag) > 1 and len(tag) < 30 and tag not in tags:
-                        # Skip if it's a number or common words
-                        if not tag.isdigit() and tag.lower() not in ['tags', 'tag', 'more', 'all', 'category', 'categories']:
-                            tags.append(tag)
+
+                # Skip person/model links (class="person", data-models attribute)
+                link_classes = link.get('class', [])
+                if 'person' in link_classes or link.get('data-models'):
+                    continue
+
+                # Skip model/pornstar URL patterns - these are people, not tags
+                if any(p in href for p in ['/pornstars/', '/pornstar/', '/models/', '/model/',
+                                           '/actress/', '/performers/', '/performer/']):
+                    continue
+
+                # Direct match patterns (high confidence)
+                if any(p in href for p in ['/category/', '/tag/', '/user_tags/', '/tags/', '/labels/', '/niches/']):
+                    _add_tag(link.get_text())
+                    continue
+
+                # Pattern with filtering: /pics/, /galleries/, /channels/
+                # Only match short path segments (tag names, not gallery slugs)
+                for prefix in ['/pics/', '/galleries/', '/channels/']:
+                    if prefix in href:
+                        # Extract path segment after prefix
+                        idx = href.index(prefix) + len(prefix)
+                        remaining = href[idx:].strip('/')
+                        # Tag URLs have short slugs, gallery URLs have long slugs with many dashes
+                        if remaining and len(remaining) < 25 and remaining.count('-') < 3:
+                            _add_tag(link.get_text())
+                        break
         except:
             pass
 
-        # Strategy 2: Common tag selectors (including porn site specific ones)
+        # Strategy 2: Common tag CSS selectors (including porn site specific ones)
         tag_selectors = [
             # Generic
             '.tags a',
@@ -211,12 +278,24 @@ class MetadataExtractor:
             '.label',
             '.badge',
             # Porn site specific
+            '.content-categories a:not(.person)',  # allasianpics, lamalinks
             '.bot a',  # multporn.net uses this!
             '.wp-tag-cloud a',  # WordPress tag cloud
             '.tagcloud a',
             '.entry-tags a',
             '.post-tags a',
             'a.tag-link',
+            'a.tag_item',
+            # Additional common selectors
+            '.tag-list a',
+            '.tags-list a',
+            '.tag-container a',
+            '.tdn a',
+            '.info-tags a',
+            '.meta-tags a',
+            '.categories-list a',
+            '.cats a',
+            '.cat-list a',
             # By pattern matching
             'a[href*="/tag/"]',
             'a[href*="/tags/"]',
@@ -226,17 +305,297 @@ class MetadataExtractor:
             try:
                 elements = soup.select(selector)
                 for elem in elements:
-                    tag = elem.get_text().strip()
-                    # Clean up tag
-                    tag = tag.replace(',', '').replace(';', '').replace('#', '')
-                    if tag and len(tag) > 1 and len(tag) < 30 and tag not in tags:
-                        # Skip if it's a number or common words
-                        if not tag.isdigit() and tag.lower() not in ['tags', 'tag', 'more', 'all', 'category', 'categories']:
-                            tags.append(tag)
+                    # Skip person/model links (e.g. class="person", data-models attr)
+                    if elem.get('class') and 'person' in elem.get('class', []):
+                        continue
+                    if elem.get('data-models'):
+                        continue
+                    _add_tag(elem.get_text())
             except:
                 continue
 
+        # Strategy 3: Heuristic - ALWAYS run as primary detection method
+        # Detects tags by page structure: a group of short-text elements in a container
+        # Works for sites like lamalinks.com, allasianpics.com where tags are visible
+        # on the page but don't use recognizable URL patterns
+        heuristic_tags = self._heuristic_tag_extraction(soup)
+        for tag in heuristic_tags:
+            _add_tag(tag)
+
         return tags[:50]  # Limit to 50 tags
+
+    def _heuristic_tag_extraction(self, soup: BeautifulSoup) -> List[str]:
+        """Find tags by detecting grouped short-text elements on the page.
+
+        Uses multiple signals to distinguish real tag bars from directory sections:
+        - "Tags:" label nearby = very strong positive
+        - Link URLs pointing to /models/, /pornstars/ = strong negative
+        - Link URLs pointing to /tags/, /category/ = strong positive
+        - Person name pattern (Firstname Lastname) = negative
+        - Directory heading/label nearby = strong negative
+        - Large item count (30+) = negative
+        - Tag-related CSS class = positive
+        """
+        import re as _re
+
+        nav_words = {
+            'home', 'about', 'contact', 'login', 'register', 'sign in', 'sign up',
+            'search', 'pornstars', 'sex chat', 'horny girls',
+            'tik tok porn', 'amateur cams', 'live cams', 'webcams',
+            'dmca', 'privacy', 'terms', '2257', 'sitemap',
+            'welcome', 'help', 'faq', 'menu', 'rss',
+        }
+
+        # Words that indicate directory/listing sections (NOT gallery tags)
+        directory_words = [
+            'trending', 'related', 'popular', 'view more', 'more tags',
+            'more pornstar', 'more categor', 'more model',
+            'favourite', 'favorite', 'featured', 'suggested', 'recommended',
+            'top pornstar', 'top model', 'top artist',
+            'all pornstar', 'all model', 'all artist', 'all tag', 'all categor',
+            'similar', 'you may', 'you might', 'best pornstar', 'best model',
+            'pornstar list', 'model list', 'artist list',
+        ]
+
+        # Words in class/id that indicate directory sections
+        directory_class_words = [
+            'trending', 'related', 'popular', 'sidebar', 'suggested',
+            'recommended', 'similar', 'favourite', 'favorite', 'featured',
+            'pornstar', 'model-list', 'artist',
+        ]
+
+        # URL path segments that indicate model/pornstar links
+        model_url_patterns = [
+            '/models/', '/model/', '/pornstars/', '/pornstar/',
+            '/actress/', '/girls/', '/girl/', '/artists/', '/artist/',
+            '/performers/', '/performer/', '/stars/', '/star/',
+        ]
+
+        # URL path segments that indicate tag/category links
+        tag_url_patterns = [
+            '/tags/', '/tag/', '/category/', '/categories/',
+            '/cat/', '/keywords/', '/keyword/', '/niches/', '/niche/',
+        ]
+
+        # --- Pre-compute gallery image position ---
+        all_elems = soup.find_all(True)
+        elem_pos = {id(e): i for i, e in enumerate(all_elems)}
+
+        gallery_pos = len(all_elems)
+        img_positions = [i for i, e in enumerate(all_elems) if e.name == 'img']
+        for idx in range(len(img_positions) - 2):
+            if img_positions[idx + 2] - img_positions[idx] < 30:
+                gallery_pos = img_positions[idx]
+                break
+
+        # Person name regex: 2-3 capitalized words (like "Arisa Nakano")
+        person_name_re = _re.compile(r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}$')
+
+        # --- Score each candidate container ---
+        best_tags = []
+        best_score = 0
+
+        for container in soup.find_all(['div', 'ul', 'ol', 'span', 'section', 'p', 'nav']):
+            all_descendants = container.find_all(True)
+            if len(all_descendants) > 150:
+                continue
+
+            # Collect direct child elements
+            child_elements = []
+            for child in container.children:
+                if hasattr(child, 'name') and child.name:
+                    child_elements.append(child)
+
+            # Handle ul > li > a pattern
+            if child_elements and sum(1 for c in child_elements if c.name == 'li') > len(child_elements) * 0.5:
+                unwrapped = []
+                for li in child_elements:
+                    if li.name == 'li':
+                        inner = li.find(['a', 'span'])
+                        unwrapped.append(inner if inner else li)
+                    else:
+                        unwrapped.append(li)
+                child_elements = unwrapped
+
+            if len(child_elements) < 3:
+                continue
+
+            # Analyze children
+            valid_tags = []
+            nav_count = 0
+            img_count = 0
+            hrefs = []
+
+            for child in child_elements:
+                if child is None:
+                    continue
+                text = child.get_text().strip()
+                if not text or len(text) > 35 or text.isdigit():
+                    continue
+                if child.find('img') and len(text) < 2:
+                    img_count += 1
+                    continue
+                if text.lower() in nav_words:
+                    nav_count += 1
+                    continue
+                # Skip person/model entries (class="person", data-models attr)
+                child_classes = child.get('class', []) if hasattr(child, 'get') else []
+                if 'person' in child_classes:
+                    continue
+                if hasattr(child, 'get') and child.get('data-models'):
+                    continue
+                href = child.get('href', '') if child.name == 'a' else ''
+                if href and any(ext in href.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                    continue
+                valid_tags.append(text)
+                if href:
+                    hrefs.append(href.lower())
+
+            if len(valid_tags) < 5:
+                continue
+            if nav_count > len(valid_tags):
+                continue
+            if img_count > len(valid_tags):
+                continue
+
+            # ============ MULTI-SIGNAL SCORING ============
+            n = len(valid_tags)
+            score = 100  # Base score
+
+            # --- Signal 1: "Tags:" / "Categories:" label nearby ---
+            has_tag_label = False
+            tag_label_words = ['tags:', 'tags', 'categories:', 'categories',
+                               'keywords:', 'keywords', 'characters:']
+            # Check inline text in container or parent
+            for check_elem in [container, container.parent]:
+                if not check_elem:
+                    continue
+                for child_node in check_elem.children:
+                    if isinstance(child_node, str):
+                        txt = child_node.strip().lower()
+                        if txt in tag_label_words:
+                            has_tag_label = True
+                            break
+                    elif hasattr(child_node, 'name') and child_node.name in ['strong', 'b', 'span', 'label', 'em']:
+                        txt = child_node.get_text().strip().lower()
+                        if txt in tag_label_words:
+                            has_tag_label = True
+                            break
+                if has_tag_label:
+                    break
+            # Also check previous sibling
+            if not has_tag_label:
+                prev = container.find_previous_sibling()
+                if prev:
+                    pt = prev.get_text().strip().lower()
+                    if pt in tag_label_words:
+                        has_tag_label = True
+
+            if has_tag_label:
+                score += 500
+
+            # --- Signal 2: Link URL patterns ---
+            if hrefs:
+                model_link_count = sum(1 for h in hrefs if any(p in h for p in model_url_patterns))
+                tag_link_count = sum(1 for h in hrefs if any(p in h for p in tag_url_patterns))
+
+                if model_link_count > len(hrefs) * 0.3:
+                    score -= 600  # Strong negative: links point to model/pornstar pages
+                if tag_link_count > len(hrefs) * 0.3:
+                    score += 300  # Strong positive: links point to tag/category pages
+
+            # --- Signal 3: Person name detection ---
+            if valid_tags:
+                name_count = sum(1 for t in valid_tags if person_name_re.match(t))
+                name_ratio = name_count / len(valid_tags)
+                if name_ratio > 0.5:
+                    score -= 400  # Most items look like person names
+
+            # --- Signal 4: DOM position (before gallery = moderate bonus) ---
+            container_pos = elem_pos.get(id(container), len(all_elems))
+            if container_pos < gallery_pos:
+                score += 100
+
+            # --- Signal 5: Nearby directory headings/labels = strong penalty ---
+            is_directory = False
+
+            # Check class/id of container and ancestors
+            for elem in [container, container.parent,
+                         container.parent.parent if container.parent else None]:
+                if not elem or not hasattr(elem, 'get'):
+                    continue
+                attrs = ''
+                for attr in ['class', 'id']:
+                    val = elem.get(attr, '')
+                    attrs += (' '.join(val) if isinstance(val, list) else str(val)) + ' '
+                if any(w in attrs.lower() for w in directory_class_words):
+                    is_directory = True
+                    break
+
+            # Broad text search: check ANY element near the container for directory words
+            # This catches headings inside wrapper divs, <span>, <strong>, etc.
+            if not is_directory:
+                # Check preceding siblings of container and its parent (any element, not just headings)
+                for check in [container, container.parent]:
+                    if not check or not hasattr(check, 'find_previous_sibling'):
+                        continue
+                    for sib in check.previous_siblings:
+                        if not hasattr(sib, 'get_text'):
+                            continue
+                        sib_text = sib.get_text().strip().lower()
+                        if len(sib_text) > 100:
+                            break  # Stop at large content blocks
+                        if any(w in sib_text for w in directory_words):
+                            is_directory = True
+                            break
+                    if is_directory:
+                        break
+
+                # Check headings inside parent wrapper
+                if not is_directory:
+                    for check in [container, container.parent]:
+                        if not check or not hasattr(check, 'parent') or not check.parent:
+                            continue
+                        parent = check.parent
+                        if hasattr(parent, 'find_all'):
+                            for child in parent.find_all(True, recursive=False):
+                                if child == check or child == container:
+                                    continue
+                                txt = child.get_text().strip().lower()
+                                if len(txt) < 80 and any(w in txt for w in directory_words):
+                                    is_directory = True
+                                    break
+                        if is_directory:
+                            break
+
+            if is_directory:
+                score -= 500
+
+            # --- Signal 6: Item count preference ---
+            if n <= 20:
+                score += 30  # Typical tag bar size
+            elif n > 30:
+                score -= 100  # Too many items = likely directory
+
+            # --- Signal 7: Tag-related CSS class names ---
+            for elem in [container, container.parent]:
+                if elem and hasattr(elem, 'get'):
+                    classes = ' '.join(elem.get('class', []))
+                    if any(w in classes.lower() for w in ['tag', 'cat', 'label', 'info', 'meta', 'keyword', 'badge']):
+                        score += 200
+                        break
+
+            # --- Penalty for header/footer ---
+            for parent in container.parents:
+                if parent and parent.name in ['header', 'footer']:
+                    score //= 3
+                    break
+
+            if score > best_score:
+                best_score = score
+                best_tags = valid_tags
+
+        return best_tags
 
     def _extract_artist(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract artist/author name"""
@@ -419,57 +778,106 @@ class GalleryDetector:
             except Exception:
                 continue
 
-        # Fallback: Find div/article with most images
+        # Fallback: Find the most SPECIFIC container with images
+        # (prefer deeper/tighter containers over page-level wrappers)
         all_containers = soup.find_all(['div', 'article', 'section', 'main'])
 
         candidates = []
         for container in all_containers:
             # Skip excluded containers
+            skip = False
+            container_classes = ' '.join(container.get('class', []))
+            container_id = container.get('id', '')
+            # Skip sidebar, related, navigation, footer sections
+            skip_patterns = ['sidebar', 'related', 'similar', 'recommend', 'popular',
+                             'footer', 'header', 'nav', 'menu', 'comment', 'advertisement',
+                             'ad-', 'widget', 'banner']
+            for pattern in skip_patterns:
+                if pattern in container_classes.lower() or pattern in container_id.lower():
+                    skip = True
+                    break
+            if skip:
+                continue
             if any(container.select(ex_sel) for ex_sel in exclude_selectors if ex_sel):
                 continue
 
             img_count = len(container.find_all('img'))
-            if img_count >= 3:  # Minimum 3 images to be considered a gallery
-                candidates.append((container, img_count))
+            if img_count >= 3:
+                # Calculate depth (how deep in the DOM tree)
+                depth = len(list(container.parents))
+                candidates.append((container, img_count, depth))
 
-        if candidates:
-            # Return container with most images
-            return max(candidates, key=lambda x: x[1])[0]
+        if not candidates:
+            return None
 
-        return None
+        max_images = max(c[1] for c in candidates)
+
+        # Prefer the deepest (most specific) container that has at least
+        # 50% of the max image count - this avoids page-level wrappers
+        # that include sidebar/related content
+        good_candidates = [c for c in candidates if c[1] >= max_images * 0.5]
+        best = max(good_candidates, key=lambda x: x[2])  # deepest
+        return best[0]
 
     def _extract_images_from_container(self, container, base_url: str) -> List[str]:
-        """Extract all image URLs from a container"""
+        """Extract all image URLs from a container.
+        Prefers full-size URLs from <a href> over thumbnail URLs from <img src>.
+        When <a> wraps <img>, uses the link URL (full-size) and skips the img (thumbnail).
+        """
         images = []
+        seen_urls = set()
+        thumbnail_urls = set()  # Track thumbnails that have a full-size link
 
-        # Find all img tags
-        for img in container.find_all('img'):
-            img_url = self._get_best_image_url(img, base_url)
-            if img_url:
-                images.append(img_url)
-
-        # Also check for links to images
+        # Pass 1: Find <a> tags that link to images - these are full-size URLs
         for link in container.find_all('a'):
             href = link.get('href', '')
             if self._is_image_url(href):
-                images.append(urljoin(base_url, href))
+                full_url = urljoin(base_url, href)
+                if full_url not in seen_urls:
+                    images.append(full_url)
+                    seen_urls.add(full_url)
+                    # Mark any <img> inside this <a> as a thumbnail (skip later)
+                    for img in link.find_all('img'):
+                        thumb_url = self._get_best_image_url(img, base_url)
+                        if thumb_url:
+                            thumbnail_urls.add(thumb_url)
+
+        # Pass 2: Find <img> tags NOT already covered by <a> links
+        for img in container.find_all('img'):
+            img_url = self._get_best_image_url(img, base_url)
+            if img_url and img_url not in seen_urls and img_url not in thumbnail_urls:
+                images.append(img_url)
+                seen_urls.add(img_url)
 
         return images
 
     def _find_all_images(self, soup: BeautifulSoup, base_url: str) -> List[str]:
-        """Find all images on the page"""
+        """Find all images on the page.
+        Same logic: prefers <a href> full-size over <img src> thumbnails.
+        """
         images = []
+        seen_urls = set()
+        thumbnail_urls = set()
 
-        for img in soup.find_all('img'):
-            img_url = self._get_best_image_url(img, base_url)
-            if img_url:
-                images.append(img_url)
-
-        # Check links to images
+        # Pass 1: <a> links to images (full-size)
         for link in soup.find_all('a'):
             href = link.get('href', '')
             if self._is_image_url(href):
-                images.append(urljoin(base_url, href))
+                full_url = urljoin(base_url, href)
+                if full_url not in seen_urls:
+                    images.append(full_url)
+                    seen_urls.add(full_url)
+                    for img in link.find_all('img'):
+                        thumb_url = self._get_best_image_url(img, base_url)
+                        if thumb_url:
+                            thumbnail_urls.add(thumb_url)
+
+        # Pass 2: <img> tags not covered by <a> links
+        for img in soup.find_all('img'):
+            img_url = self._get_best_image_url(img, base_url)
+            if img_url and img_url not in seen_urls and img_url not in thumbnail_urls:
+                images.append(img_url)
+                seen_urls.add(img_url)
 
         return images
 
@@ -543,9 +951,9 @@ class ImageDownloader:
     def __init__(self, config: dict):
         self.config = config
         self.download_config = config.get('download', {})
-        self.min_size = config['scraper'].get('min_image_size', 50) * 1024  # KB to bytes
-        self.min_width = config['scraper'].get('min_width', 500)
-        self.min_height = config['scraper'].get('min_height', 500)
+        self.min_size = config['scraper'].get('min_image_size', 15) * 1024  # KB to bytes
+        self.min_width = config['scraper'].get('min_width', 400)
+        self.min_height = config['scraper'].get('min_height', 400)
 
         # Show warning if Pillow is not available
         if not HAS_PILLOW:
@@ -763,7 +1171,7 @@ class HybridScraper:
         console.print("[yellow]⚠ config.yaml not found, using default configuration[/yellow]")
         return default_config
 
-    async def scrape_gallery(self, url: str, output_dir: Optional[Path] = None, mode: str = 'auto'):
+    async def scrape_gallery(self, url: str, output_dir: Optional[Path] = None, mode: str = 'auto', _from_listing: bool = False):
         """
         Scrape a single gallery
 
@@ -826,7 +1234,31 @@ class HybridScraper:
 
             all_images = await self._scrape_with_playwright(url)
 
+        # Check if this is a listing/category page (before downloading images)
+        if not _from_listing:
+            # Quick HTML fetch to check page structure
+            listing_soup = None
+            try:
+                headers = {'User-Agent': self.config['scraper'].get('user_agent', 'Mozilla/5.0')}
+                resp = requests.get(url, headers=headers, timeout=15)
+                if resp.status_code == 200:
+                    listing_soup = BeautifulSoup(resp.text, 'html.parser')
+            except Exception:
+                pass
+
+            if listing_soup and self._is_listing_page(listing_soup, url):
+                console.print("[cyan]🔍 Detected listing/category page with gallery grid![/cyan]")
+                listing_handled = await self._try_as_listing_page(url, output_dir, mode)
+                if listing_handled:
+                    return
+
         if not all_images:
+            # Before giving up, also check if this is a listing/category page
+            if not _from_listing:
+                listing_handled = await self._try_as_listing_page(url, output_dir, mode)
+                if listing_handled:
+                    return
+
             console.print("[yellow]⚠ No images found![/yellow]")
             return
 
@@ -1152,6 +1584,272 @@ class HybridScraper:
         # Remove duplicates
         unique_images = list(dict.fromkeys(all_images))
         return unique_images
+
+    async def _try_as_listing_page(self, url: str, output_dir: Optional[Path], mode: str) -> bool:
+        """Check if URL is a listing/category page and scrape galleries from it"""
+        console.print("\n[cyan]🔍 Checking if this is a listing/category page...[/cyan]")
+
+        headers = {
+            'User-Agent': self.config['scraper'].get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+        }
+
+        soup = None
+
+        # Try with Playwright first (better for JS-rendered infinite scroll pages)
+        if HAS_PLAYWRIGHT:
+            try:
+                async with async_playwright() as p:
+                    launch_options = {
+                        'headless': self.config['scraper'].get('headless', True),
+                        'args': ['--no-sandbox', '--disable-setuid-sandbox']
+                    }
+                    browser = await p.chromium.launch(**launch_options)
+                    context = await browser.new_context(
+                        viewport={'width': 1920, 'height': 1080},
+                        user_agent=headers['User-Agent']
+                    )
+                    page = await context.new_page()
+                    await page.goto(url, wait_until='networkidle', timeout=30000)
+                    await page.wait_for_timeout(3000)
+
+                    # Scroll multiple times to load infinite scroll content
+                    console.print("[cyan]📜 Scrolling to load galleries...[/cyan]")
+                    await self._scroll_page(page, max_scrolls=20)
+
+                    html = await page.content()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    await browser.close()
+            except Exception as e:
+                console.print(f"[dim]Browser fetch failed: {e}[/dim]")
+
+        # Fallback to requests
+        if not soup:
+            try:
+                response = requests.get(url, headers=headers, timeout=30)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.text, 'html.parser')
+            except Exception:
+                pass
+
+        if not soup:
+            return False
+
+        # Extract gallery links
+        gallery_links = self._extract_listing_gallery_links(soup, url)
+
+        if len(gallery_links) < 3:
+            return False
+
+        console.print(f"[green]✓ Detected listing page with {len(gallery_links)} galleries![/green]")
+
+        # Show found galleries
+        for i, gurl in enumerate(gallery_links[:5], 1):
+            console.print(f"[dim]  {i}. {gurl}[/dim]")
+        if len(gallery_links) > 5:
+            console.print(f"[dim]  ... and {len(gallery_links) - 5} more[/dim]")
+
+        console.print(f"\n[cyan]📥 Scraping all {len(gallery_links)} galleries...[/cyan]")
+
+        # Use passed output_dir or create one
+        if output_dir is None:
+            output_dir = Path(self.config['download']['output_dir'])
+            if self.config['download'].get('create_subdirs', True):
+                folder_name = self._generate_folder_name(url)
+                output_dir = output_dir / folder_name
+
+        # Scrape each gallery
+        for i, gallery_url in enumerate(gallery_links, 1):
+            console.print(f"\n[bold cyan]═══ Gallery {i}/{len(gallery_links)} ═══[/bold cyan]")
+            console.print(f"[dim]{gallery_url}[/dim]\n")
+            try:
+                await self.scrape_gallery(gallery_url, output_dir=output_dir, mode=mode, _from_listing=True)
+            except Exception as e:
+                console.print(f"[red]✗ Error scraping gallery: {e}[/red]")
+                continue
+
+        console.print(f"\n[bold green]✨ Listing page complete! ({len(gallery_links)} galleries)[/bold green]")
+        return True
+
+    def _is_listing_page(self, soup: BeautifulSoup, url: str) -> bool:
+        """Detect if a page is a listing/category page (grid of gallery thumbnails)
+        rather than an actual gallery with full-size images.
+
+        Key signal: many <a> tags wrapping <img> thumbnails that link to OTHER internal pages.
+        """
+        base_domain = urlparse(url).netloc.replace('www.', '')
+        base_path = urlparse(url).path.rstrip('/')
+
+        thumb_link_count = 0
+        total_images = len(soup.find_all('img'))
+
+        for link in soup.find_all('a', href=True):
+            href = link.get('href', '')
+            if not href or href.startswith('#') or href.startswith('javascript:'):
+                continue
+
+            # Must wrap an image
+            if not link.find('img'):
+                continue
+
+            full_url = urljoin(url, href)
+            link_path = urlparse(full_url).path.rstrip('/')
+            link_domain = urlparse(full_url).netloc.replace('www.', '')
+
+            # Must be same domain
+            if link_domain != base_domain:
+                continue
+
+            # Must link to a different page (not same page, not image file)
+            if link_path == base_path:
+                continue
+            if any(link_path.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                continue
+
+            # Must be longer/deeper than current path (gallery links are more specific)
+            if len(link_path) > len(base_path) + 5:
+                thumb_link_count += 1
+
+        # If more than 5 thumbnail links to internal pages, it's likely a listing page
+        return thumb_link_count >= 5
+
+    def _extract_listing_gallery_links(self, soup: BeautifulSoup, base_url: str) -> List[str]:
+        """Extract gallery links from a listing/category page"""
+        gallery_links = []
+        seen_urls = set()
+
+        base_domain = urlparse(base_url).netloc.replace('www.', '')
+        base_path = urlparse(base_url).path.rstrip('/')
+
+        for link in soup.find_all('a', href=True):
+            href = link.get('href', '')
+            if not href or href.startswith('#') or href.startswith('javascript:'):
+                continue
+
+            full_url = urljoin(base_url, href)
+
+            # Skip if already seen
+            if full_url in seen_urls:
+                continue
+
+            # Skip external links (different domain)
+            link_domain = urlparse(full_url).netloc.replace('www.', '')
+            if base_domain != link_domain:
+                continue
+
+            # Skip if same as current page
+            if full_url.rstrip('/') == base_url.rstrip('/'):
+                continue
+
+            # Skip excluded patterns (navigation, pagination, etc.)
+            if self._is_excluded_listing_link(full_url):
+                continue
+
+            # Check if link contains/wraps a thumbnail image
+            has_thumb = link.find('img') is not None
+
+            # Check URL patterns for gallery-like links
+            path = urlparse(full_url).path
+            is_gallery_like = False
+
+            # Gallery URL patterns
+            gallery_patterns = [
+                r'/(gallery|galleries|comic|comics|album|post|pics|galls)/[^/]{10,}',
+                r'/[a-z0-9]+-[a-z0-9-]+-\d{4,}/?$',  # slug-with-numbers pattern
+                r'/\d{5,}/',  # numeric ID
+            ]
+
+            for pattern in gallery_patterns:
+                if re.search(pattern, path):
+                    is_gallery_like = True
+                    break
+
+            # Links wrapping thumbnails with descriptive slugs
+            if not is_gallery_like and has_thumb:
+                slug = path.strip('/').split('/')[-1] if '/' in path else path.strip('/')
+                # Gallery link: slug longer than 10 chars with dashes (descriptive title)
+                if len(slug) > 10 and slug.count('-') >= 2:
+                    is_gallery_like = True
+                # Gallery link: path is deeper/longer than current page
+                elif len(path.rstrip('/')) > len(base_path) + 5:
+                    is_gallery_like = True
+
+            # Links with thumbnail and longer path than base (catch-all for thumb grids)
+            if not is_gallery_like and has_thumb and len(path) > 10:
+                # Skip very short paths (single segment like /teen/, /milf/)
+                segments = [s for s in path.strip('/').split('/') if s]
+                if len(segments) >= 2 or (len(segments) == 1 and len(segments[0]) > 20):
+                    is_gallery_like = True
+
+            if is_gallery_like:
+                seen_urls.add(full_url)
+                gallery_links.append(full_url)
+
+        # Remove duplicates while preserving order
+        return list(dict.fromkeys(gallery_links))
+
+    def _is_excluded_listing_link(self, url: str) -> bool:
+        """Check if a link should be excluded from gallery listing"""
+        path = urlparse(url).path.lower()
+
+        excluded_patterns = [
+            r'^/?$',  # Root
+            r'[?&]page=',
+            r'[?&]sort=',
+            r'[?&]filter=',
+            r'/page/\d+/?$',
+            r'/tag/[^/]+/?$',
+            r'/tags/[^/]+/?$',
+            r'/category/[^/]+/?$',
+            r'/categories/?$',
+            r'/channels/?$',
+            r'/pornstars/?$',
+            r'/pornstar/[^/]+/?$',
+            r'/models/?$',
+            r'/search',
+            r'/login',
+            r'/register',
+            r'/dmca',
+            r'/privacy',
+            r'/terms',
+            r'/contact',
+            r'/about',
+            r'/sitemap',
+        ]
+
+        for pattern in excluded_patterns:
+            if re.search(pattern, url) or re.search(pattern, path):
+                return True
+
+        return False
+
+    async def _scroll_page(self, page, max_scrolls: int = 15):
+        """Scroll page to load lazy-loaded / infinite scroll content.
+
+        Scrolls multiple rounds, detecting when new content loads.
+        Stops when no new content appears or max_scrolls reached.
+        """
+        try:
+            prev_height = 0
+            no_change_count = 0
+
+            for i in range(max_scrolls):
+                # Scroll to bottom
+                current_height = await page.evaluate("document.body.scrollHeight")
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_timeout(1500)  # Wait for new content to load
+
+                # Check if new content appeared
+                new_height = await page.evaluate("document.body.scrollHeight")
+                if new_height == current_height:
+                    no_change_count += 1
+                    if no_change_count >= 2:
+                        break  # No new content after 2 tries
+                else:
+                    no_change_count = 0
+
+                prev_height = new_height
+        except Exception:
+            pass
 
     def _generate_folder_name(self, url: str) -> str:
         """Generate folder name from URL"""
