@@ -778,24 +778,46 @@ class GalleryDetector:
             except Exception:
                 continue
 
-        # Fallback: Find div/article with most images
+        # Fallback: Find the most SPECIFIC container with images
+        # (prefer deeper/tighter containers over page-level wrappers)
         all_containers = soup.find_all(['div', 'article', 'section', 'main'])
 
         candidates = []
         for container in all_containers:
             # Skip excluded containers
+            skip = False
+            container_classes = ' '.join(container.get('class', []))
+            container_id = container.get('id', '')
+            # Skip sidebar, related, navigation, footer sections
+            skip_patterns = ['sidebar', 'related', 'similar', 'recommend', 'popular',
+                             'footer', 'header', 'nav', 'menu', 'comment', 'advertisement',
+                             'ad-', 'widget', 'banner']
+            for pattern in skip_patterns:
+                if pattern in container_classes.lower() or pattern in container_id.lower():
+                    skip = True
+                    break
+            if skip:
+                continue
             if any(container.select(ex_sel) for ex_sel in exclude_selectors if ex_sel):
                 continue
 
             img_count = len(container.find_all('img'))
-            if img_count >= 3:  # Minimum 3 images to be considered a gallery
-                candidates.append((container, img_count))
+            if img_count >= 3:
+                # Calculate depth (how deep in the DOM tree)
+                depth = len(list(container.parents))
+                candidates.append((container, img_count, depth))
 
-        if candidates:
-            # Return container with most images
-            return max(candidates, key=lambda x: x[1])[0]
+        if not candidates:
+            return None
 
-        return None
+        max_images = max(c[1] for c in candidates)
+
+        # Prefer the deepest (most specific) container that has at least
+        # 50% of the max image count - this avoids page-level wrappers
+        # that include sidebar/related content
+        good_candidates = [c for c in candidates if c[1] >= max_images * 0.5]
+        best = max(good_candidates, key=lambda x: x[2])  # deepest
+        return best[0]
 
     def _extract_images_from_container(self, container, base_url: str) -> List[str]:
         """Extract all image URLs from a container.
