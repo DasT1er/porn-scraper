@@ -1031,7 +1031,7 @@ class ImageDownloader:
                     content = response.content
 
                     # Validate image
-                    if not self._validate_image(content):
+                    if not self._validate_image(content, url):
                         stats['skipped'] += 1
                         progress.update(task_id, advance=1)
                         return
@@ -1057,10 +1057,12 @@ class ImageDownloader:
                         stats['failed'] += 1
                         progress.update(task_id, advance=1)
 
-    def _validate_image(self, content: bytes) -> bool:
+    def _validate_image(self, content: bytes, url: str = '') -> bool:
         """Validate image size and dimensions"""
         # Check file size
+        size_kb = len(content) / 1024
         if len(content) < self.min_size:
+            console.print(f"[dim]  ⊘ Skip (size: {size_kb:.0f}KB < {self.min_size/1024:.0f}KB): {url[-50:]}[/dim]")
             return False
 
         # Check dimensions (only if Pillow is available)
@@ -1070,14 +1072,14 @@ class ImageDownloader:
                 width, height = img.size
 
                 if width < self.min_width or height < self.min_height:
+                    console.print(f"[dim]  ⊘ Skip ({width}x{height} < {self.min_width}x{self.min_height}): {url[-50:]}[/dim]")
                     return False
 
                 return True
-            except Exception:
+            except Exception as e:
+                console.print(f"[dim]  ⊘ Skip (invalid image: {e}): {url[-50:]}[/dim]")
                 return False
         else:
-            # Without Pillow, we can only validate file size
-            # Assume image is valid if it's large enough
             return True
 
     def _generate_filename(self, url: str, index: int) -> str:
