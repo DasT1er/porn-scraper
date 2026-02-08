@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gallery Scraper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        dark: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 850: '#172033', 900: '#0f172a', 950: '#020617' },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .log-scroll { scrollbar-width: thin; scrollbar-color: #334155 transparent; }
+        .log-scroll::-webkit-scrollbar { width: 6px; }
+        .log-scroll::-webkit-scrollbar-track { background: transparent; }
+        .log-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .gallery-grid img { transition: transform 0.2s; }
+        .gallery-grid img:hover { transform: scale(1.05); }
+    </style>
+</head>
+<body class="bg-dark-950 text-dark-200 font-sans min-h-screen" x-data="app()" x-init="init()">
+
+<!-- Layout -->
+<div class="flex min-h-screen">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-dark-900 border-r border-dark-800 flex flex-col fixed h-full z-20">
+        <!-- Logo -->
+        <div class="p-5 border-b border-dark-800">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-white font-bold text-lg">G</div>
+                <div>
+                    <h1 class="text-white font-semibold text-sm">Gallery Scraper</h1>
+                    <p class="text-dark-500 text-xs">v2 Hybrid Edition</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 p-3 space-y-1">
+            <template x-for="item in navItems" :key="item.id">
+                <button @click="page = item.id"
+                        :class="page === item.id ? 'bg-dark-800 text-white' : 'text-dark-400 hover:text-dark-200 hover:bg-dark-850'"
+                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    <span x-html="item.icon" class="w-5 h-5 flex items-center justify-center"></span>
+                    <span x-text="item.label"></span>
+                    <span x-show="item.id === 'jobs' && activeJobCount > 0"
+                          class="ml-auto bg-violet-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full"
+                          x-text="activeJobCount"></span>
+                </button>
+            </template>
+        </nav>
+
+        <!-- Status -->
+        <div class="p-4 border-t border-dark-800">
+            <div class="flex items-center gap-2 text-xs text-dark-500">
+                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span>Server running</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 ml-64 p-6 lg:p-8">
+
+        <!-- ── Dashboard ────────────────────────────────────────── -->
+        <div x-show="page === 'dashboard'" x-cloak class="fade-in">
+            <h2 class="text-2xl font-bold text-white mb-6">Dashboard</h2>
+
+            <!-- Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-dark-500 text-sm">Galleries</p>
+                            <p class="text-2xl font-bold text-white mt-1" x-text="stats.total_galleries">0</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-dark-500 text-sm">Images</p>
+                            <p class="text-2xl font-bold text-white mt-1" x-text="stats.total_images">0</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-dark-500 text-sm">Total Size</p>
+                            <p class="text-2xl font-bold text-white mt-1" x-text="stats.total_size_mb + ' MB'">0 MB</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7c-2 0-3 1-3 3z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h8m-4-4v8"></path></svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-dark-500 text-sm">Active Jobs</p>
+                            <p class="text-2xl font-bold text-white mt-1" x-text="stats.active_jobs">0</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <h3 class="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <button @click="page = 'scrape'" class="bg-dark-900 border border-dark-800 rounded-xl p-5 hover:border-violet-500/50 transition-colors text-left group">
+                    <div class="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center mb-3 group-hover:bg-violet-500/20 transition-colors">
+                        <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <h4 class="text-white font-medium">Single Gallery</h4>
+                    <p class="text-dark-500 text-sm mt-1">Scrape a single gallery URL</p>
+                </button>
+                <button @click="page = 'batch'" class="bg-dark-900 border border-dark-800 rounded-xl p-5 hover:border-cyan-500/50 transition-colors text-left group">
+                    <div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center mb-3 group-hover:bg-cyan-500/20 transition-colors">
+                        <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    </div>
+                    <h4 class="text-white font-medium">Batch Scrape</h4>
+                    <p class="text-dark-500 text-sm mt-1">Scrape multiple URLs at once</p>
+                </button>
+                <button @click="page = 'category'" class="bg-dark-900 border border-dark-800 rounded-xl p-5 hover:border-emerald-500/50 transition-colors text-left group">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-3 group-hover:bg-emerald-500/20 transition-colors">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    </div>
+                    <h4 class="text-white font-medium">Category Scrape</h4>
+                    <p class="text-dark-500 text-sm mt-1">Scrape an entire category</p>
+                </button>
+            </div>
+
+            <!-- Recent Jobs -->
+            <h3 class="text-lg font-semibold text-white mb-4">Recent Jobs</h3>
+            <div class="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden">
+                <template x-if="recentJobs.length === 0">
+                    <div class="p-8 text-center text-dark-500">
+                        <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                        <p>No scraping jobs yet</p>
+                        <p class="text-sm mt-1">Start by scraping a gallery above</p>
+                    </div>
+                </template>
+                <template x-if="recentJobs.length > 0">
+                    <table class="w-full">
+                        <thead class="bg-dark-850">
+                            <tr>
+                                <th class="text-left text-xs font-medium text-dark-500 uppercase tracking-wider px-4 py-3">URL</th>
+                                <th class="text-left text-xs font-medium text-dark-500 uppercase tracking-wider px-4 py-3">Type</th>
+                                <th class="text-left text-xs font-medium text-dark-500 uppercase tracking-wider px-4 py-3">Mode</th>
+                                <th class="text-left text-xs font-medium text-dark-500 uppercase tracking-wider px-4 py-3">Status</th>
+                                <th class="text-right text-xs font-medium text-dark-500 uppercase tracking-wider px-4 py-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-dark-800">
+                            <template x-for="job in recentJobs" :key="job.id">
+                                <tr class="hover:bg-dark-850/50">
+                                    <td class="px-4 py-3 text-sm text-dark-300 max-w-xs truncate" x-text="job.url"></td>
+                                    <td class="px-4 py-3">
+                                        <span class="text-xs px-2 py-1 rounded-full"
+                                              :class="{'bg-violet-500/10 text-violet-400': job.type==='single', 'bg-cyan-500/10 text-cyan-400': job.type==='batch', 'bg-emerald-500/10 text-emerald-400': job.type==='category'}"
+                                              x-text="job.type"></span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-dark-400" x-text="job.mode"></td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center gap-1.5 text-xs font-medium"
+                                              :class="{'text-amber-400': job.status==='running', 'text-emerald-400': job.status==='completed', 'text-red-400': job.status==='failed', 'text-dark-500': job.status==='queued'}">
+                                            <span class="w-1.5 h-1.5 rounded-full"
+                                                  :class="{'bg-amber-400 animate-pulse': job.status==='running', 'bg-emerald-400': job.status==='completed', 'bg-red-400': job.status==='failed', 'bg-dark-500': job.status==='queued'}"></span>
+                                            <span x-text="job.status"></span>
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <button @click="viewJobLogs(job.id)" class="text-xs text-dark-500 hover:text-white transition-colors">Logs</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </template>
+            </div>
+        </div>
+
+        <!-- ── Single Scrape ────────────────────────────────────── -->
+        <div x-show="page === 'scrape'" x-cloak class="fade-in">
+            <h2 class="text-2xl font-bold text-white mb-6">Single Gallery</h2>
+
+            <div class="max-w-2xl">
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-6">
+                    <div class="space-y-5">
+                        <!-- URL -->
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Gallery URL</label>
+                            <input type="url" x-model="scrapeForm.url" placeholder="https://example.com/gallery/..."
+                                   class="w-full bg-dark-850 border border-dark-700 rounded-lg px-4 py-2.5 text-white placeholder-dark-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-colors">
+                        </div>
+
+                        <!-- Mode -->
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Scraping Mode</label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <template x-for="m in modes" :key="m.value">
+                                    <button @click="scrapeForm.mode = m.value"
+                                            :class="scrapeForm.mode === m.value ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-dark-700 text-dark-400 hover:border-dark-600'"
+                                            class="border rounded-lg p-3 text-center transition-colors">
+                                        <div class="text-lg mb-1" x-text="m.icon"></div>
+                                        <div class="text-xs font-medium" x-text="m.label"></div>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Submit -->
+                        <button @click="startScrape()"
+                                :disabled="!scrapeForm.url || scrapeLoading"
+                                :class="!scrapeForm.url || scrapeLoading ? 'opacity-50 cursor-not-allowed' : 'hover:from-violet-600 hover:to-cyan-600'"
+                                class="w-full bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-medium py-2.5 rounded-lg transition-all flex items-center justify-center gap-2">
+                            <svg x-show="scrapeLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span x-text="scrapeLoading ? 'Starting...' : 'Start Scraping'"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Job Progress -->
+                <template x-if="activeJobId">
+                    <div class="mt-6 bg-dark-900 border border-dark-800 rounded-xl p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-white font-medium">Progress</h3>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-medium"
+                                  :class="{'text-amber-400': activeJobStatus==='running', 'text-emerald-400': activeJobStatus==='completed', 'text-red-400': activeJobStatus==='failed'}">
+                                <span class="w-1.5 h-1.5 rounded-full"
+                                      :class="{'bg-amber-400 animate-pulse': activeJobStatus==='running', 'bg-emerald-400': activeJobStatus==='completed', 'bg-red-400': activeJobStatus==='failed'}"></span>
+                                <span x-text="activeJobStatus"></span>
+                            </span>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div x-show="activeJobTotal > 0" class="mb-4">
+                            <div class="flex justify-between text-xs text-dark-500 mb-1">
+                                <span x-text="activeJobCurrent + '/' + activeJobTotal"></span>
+                                <span x-text="activeJobTotal > 0 ? Math.round(activeJobCurrent/activeJobTotal*100) + '%' : '0%'"></span>
+                            </div>
+                            <div class="w-full bg-dark-800 rounded-full h-2">
+                                <div class="bg-gradient-to-r from-violet-500 to-cyan-500 h-2 rounded-full transition-all duration-500"
+                                     :style="'width:' + (activeJobTotal > 0 ? (activeJobCurrent/activeJobTotal*100) : 0) + '%'"></div>
+                            </div>
+                        </div>
+
+                        <!-- Logs -->
+                        <div class="bg-dark-950 rounded-lg p-3 max-h-64 overflow-y-auto log-scroll" x-ref="logContainer">
+                            <template x-for="(log, idx) in activeJobLogs" :key="idx">
+                                <div class="flex gap-2 text-xs py-0.5 font-mono">
+                                    <span class="text-dark-600 shrink-0" x-text="log.time"></span>
+                                    <span :class="{'text-emerald-400': log.level==='success', 'text-red-400': log.level==='error', 'text-amber-400': log.level==='warning', 'text-dark-400': log.level==='info'}"
+                                          x-text="log.message"></span>
+                                </div>
+                            </template>
+                            <div x-show="activeJobLogs.length === 0" class="text-dark-600 text-xs">Waiting for output...</div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ── Batch Scrape ─────────────────────────────────────── -->
+        <div x-show="page === 'batch'" x-cloak class="fade-in">
+            <h2 class="text-2xl font-bold text-white mb-6">Batch Scrape</h2>
+
+            <div class="max-w-2xl">
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-6">
+                    <div class="space-y-5">
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">URLs (one per line)</label>
+                            <textarea x-model="batchForm.urls" rows="10" placeholder="https://example.com/gallery/1&#10;https://example.com/gallery/2&#10;# Lines starting with # are ignored"
+                                      class="w-full bg-dark-850 border border-dark-700 rounded-lg px-4 py-2.5 text-white placeholder-dark-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-colors font-mono text-sm resize-y"></textarea>
+                            <p class="text-xs text-dark-500 mt-1" x-text="batchUrlCount + ' URLs detected'"></p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Scraping Mode</label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <template x-for="m in modes" :key="m.value">
+                                    <button @click="batchForm.mode = m.value"
+                                            :class="batchForm.mode === m.value ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-dark-700 text-dark-400 hover:border-dark-600'"
+                                            class="border rounded-lg p-3 text-center transition-colors">
+                                        <div class="text-lg mb-1" x-text="m.icon"></div>
+                                        <div class="text-xs font-medium" x-text="m.label"></div>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <button @click="startBatch()"
+                                :disabled="batchUrlCount === 0 || batchLoading"
+                                :class="batchUrlCount === 0 || batchLoading ? 'opacity-50 cursor-not-allowed' : 'hover:from-violet-600 hover:to-cyan-600'"
+                                class="w-full bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-medium py-2.5 rounded-lg transition-all flex items-center justify-center gap-2">
+                            <svg x-show="batchLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span x-text="batchLoading ? 'Starting...' : 'Start Batch Scraping'"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Job Progress (reuses same component) -->
+                <template x-if="activeJobId">
+                    <div class="mt-6 bg-dark-900 border border-dark-800 rounded-xl p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-white font-medium">Progress</h3>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-medium"
+                                  :class="{'text-amber-400': activeJobStatus==='running', 'text-emerald-400': activeJobStatus==='completed', 'text-red-400': activeJobStatus==='failed'}">
+                                <span class="w-1.5 h-1.5 rounded-full"
+                                      :class="{'bg-amber-400 animate-pulse': activeJobStatus==='running', 'bg-emerald-400': activeJobStatus==='completed', 'bg-red-400': activeJobStatus==='failed'}"></span>
+                                <span x-text="activeJobStatus"></span>
+                            </span>
+                        </div>
+                        <div x-show="activeJobTotal > 0" class="mb-4">
+                            <div class="flex justify-between text-xs text-dark-500 mb-1">
+                                <span x-text="'Gallery ' + activeJobCurrent + '/' + activeJobTotal"></span>
+                                <span x-text="activeJobTotal > 0 ? Math.round(activeJobCurrent/activeJobTotal*100) + '%' : '0%'"></span>
+                            </div>
+                            <div class="w-full bg-dark-800 rounded-full h-2">
+                                <div class="bg-gradient-to-r from-violet-500 to-cyan-500 h-2 rounded-full transition-all duration-500"
+                                     :style="'width:' + (activeJobTotal > 0 ? (activeJobCurrent/activeJobTotal*100) : 0) + '%'"></div>
+                            </div>
+                        </div>
+                        <div class="bg-dark-950 rounded-lg p-3 max-h-64 overflow-y-auto log-scroll" x-ref="logContainerBatch">
+                            <template x-for="(log, idx) in activeJobLogs" :key="idx">
+                                <div class="flex gap-2 text-xs py-0.5 font-mono">
+                                    <span class="text-dark-600 shrink-0" x-text="log.time"></span>
+                                    <span :class="{'text-emerald-400': log.level==='success', 'text-red-400': log.level==='error', 'text-amber-400': log.level==='warning', 'text-dark-400': log.level==='info'}"
+                                          x-text="log.message"></span>
+                                </div>
+                            </template>
+                            <div x-show="activeJobLogs.length === 0" class="text-dark-600 text-xs">Waiting for output...</div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ── Category Scrape ──────────────────────────────────── -->
+        <div x-show="page === 'category'" x-cloak class="fade-in">
+            <h2 class="text-2xl font-bold text-white mb-6">Category Scrape</h2>
+
+            <div class="max-w-2xl">
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-6">
+                    <div class="space-y-5">
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Category URL</label>
+                            <input type="url" x-model="categoryForm.url" placeholder="https://example.com/comics/category-name"
+                                   class="w-full bg-dark-850 border border-dark-700 rounded-lg px-4 py-2.5 text-white placeholder-dark-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-colors">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Max Pages to Scan</label>
+                            <input type="number" x-model.number="categoryForm.maxPages" min="1" max="100"
+                                   class="w-32 bg-dark-850 border border-dark-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-colors">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-dark-300 mb-2">Scraping Mode</label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <template x-for="m in modes" :key="m.value">
+                                    <button @click="categoryForm.mode = m.value"
+                                            :class="categoryForm.mode === m.value ? 'border-violet-500 bg-violet-500/10 text-white' : 'border-dark-700 text-dark-400 hover:border-dark-600'"
+                                            class="border rounded-lg p-3 text-center transition-colors">
+                                        <div class="text-lg mb-1" x-text="m.icon"></div>
+                                        <div class="text-xs font-medium" x-text="m.label"></div>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <button @click="startCategory()"
+                                :disabled="!categoryForm.url || categoryLoading"
+                                :class="!categoryForm.url || categoryLoading ? 'opacity-50 cursor-not-allowed' : 'hover:from-violet-600 hover:to-cyan-600'"
+                                class="w-full bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-medium py-2.5 rounded-lg transition-all flex items-center justify-center gap-2">
+                            <svg x-show="categoryLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span x-text="categoryLoading ? 'Scanning...' : 'Start Category Scraping'"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Job Progress -->
+                <template x-if="activeJobId">
+                    <div class="mt-6 bg-dark-900 border border-dark-800 rounded-xl p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-white font-medium">Progress</h3>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-medium"
+                                  :class="{'text-amber-400': activeJobStatus==='running', 'text-emerald-400': activeJobStatus==='completed', 'text-red-400': activeJobStatus==='failed'}">
+                                <span class="w-1.5 h-1.5 rounded-full"
+                                      :class="{'bg-amber-400 animate-pulse': activeJobStatus==='running', 'bg-emerald-400': activeJobStatus==='completed', 'bg-red-400': activeJobStatus==='failed'}"></span>
+                                <span x-text="activeJobStatus"></span>
+                            </span>
+                        </div>
+                        <div x-show="activeJobTotal > 0" class="mb-4">
+                            <div class="flex justify-between text-xs text-dark-500 mb-1">
+                                <span x-text="'Gallery ' + activeJobCurrent + '/' + activeJobTotal"></span>
+                                <span x-text="activeJobTotal > 0 ? Math.round(activeJobCurrent/activeJobTotal*100) + '%' : '0%'"></span>
+                            </div>
+                            <div class="w-full bg-dark-800 rounded-full h-2">
+                                <div class="bg-gradient-to-r from-violet-500 to-cyan-500 h-2 rounded-full transition-all duration-500"
+                                     :style="'width:' + (activeJobTotal > 0 ? (activeJobCurrent/activeJobTotal*100) : 0) + '%'"></div>
+                            </div>
+                        </div>
+                        <div class="bg-dark-950 rounded-lg p-3 max-h-64 overflow-y-auto log-scroll" x-ref="logContainerCat">
+                            <template x-for="(log, idx) in activeJobLogs" :key="idx">
+                                <div class="flex gap-2 text-xs py-0.5 font-mono">
+                                    <span class="text-dark-600 shrink-0" x-text="log.time"></span>
+                                    <span :class="{'text-emerald-400': log.level==='success', 'text-red-400': log.level==='error', 'text-amber-400': log.level==='warning', 'text-dark-400': log.level==='info'}"
+                                          x-text="log.message"></span>
+                                </div>
+                            </template>
+                            <div x-show="activeJobLogs.length === 0" class="text-dark-600 text-xs">Waiting for output...</div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ── Jobs ─────────────────────────────────────────────── -->
+        <div x-show="page === 'jobs'" x-cloak class="fade-in">
+            <h2 class="text-2xl font-bold text-white mb-6">Jobs</h2>
+
+            <div class="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden">
+                <template x-if="allJobs.length === 0">
+                    <div class="p-12 text-center text-dark-500">
+                        <svg class="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                        <p class="text-lg">No jobs yet</p>
+                    </div>
+                </template>
+                <template x-if="allJobs.length > 0">
+                    <div class="divide-y divide-dark-800">
+                        <template x-for="job in allJobs" :key="job.id">
+                            <div class="p-4 hover:bg-dark-850/50 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="text-xs px-2 py-0.5 rounded-full"
+                                                  :class="{'bg-violet-500/10 text-violet-400': job.type==='single', 'bg-cyan-500/10 text-cyan-400': job.type==='batch', 'bg-emerald-500/10 text-emerald-400': job.type==='category'}"
+                                                  x-text="job.type"></span>
+                                            <span class="text-xs text-dark-600" x-text="job.id"></span>
+                                        </div>
+                                        <p class="text-sm text-dark-300 truncate" x-text="job.url"></p>
+                                        <p class="text-xs text-dark-600 mt-1" x-text="job.created_at ? new Date(job.created_at).toLocaleString() : ''"></p>
+                                    </div>
+                                    <div class="flex items-center gap-4 ml-4">
+                                        <span class="inline-flex items-center gap-1.5 text-xs font-medium"
+                                              :class="{'text-amber-400': job.status==='running', 'text-emerald-400': job.status==='completed', 'text-red-400': job.status==='failed', 'text-dark-500': job.status==='queued'}">
+                                            <span class="w-1.5 h-1.5 rounded-full"
+                                                  :class="{'bg-amber-400 animate-pulse': job.status==='running', 'bg-emerald-400': job.status==='completed', 'bg-red-400': job.status==='failed', 'bg-dark-500': job.status==='queued'}"></span>
+                                            <span x-text="job.status"></span>
+                                        </span>
+                                        <button @click="viewJobLogs(job.id)" class="text-xs text-dark-500 hover:text-white transition-colors px-2 py-1 rounded hover:bg-dark-800">Logs</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ── Downloads ────────────────────────────────────────── -->
+        <div x-show="page === 'downloads'" x-cloak class="fade-in">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-white">Downloads</h2>
+                <button @click="loadDownloads()" class="text-sm text-dark-500 hover:text-white transition-colors flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Refresh
+                </button>
+            </div>
+
+            <template x-if="downloads.length === 0">
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-12 text-center text-dark-500">
+                    <svg class="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <p class="text-lg">No downloads yet</p>
+                    <p class="text-sm mt-1">Scraped galleries will appear here</p>
+                </div>
+            </template>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 gallery-grid">
+                <template x-for="dl in downloads" :key="dl.name">
+                    <div class="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden hover:border-dark-700 transition-colors group">
+                        <!-- Thumbnail -->
+                        <div class="aspect-video bg-dark-850 relative overflow-hidden">
+                            <template x-if="dl.thumbnail">
+                                <img :src="dl.thumbnail" class="w-full h-full object-cover" :alt="dl.title" loading="lazy">
+                            </template>
+                            <template x-if="!dl.thumbnail">
+                                <div class="w-full h-full flex items-center justify-center text-dark-700">
+                                    <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                </div>
+                            </template>
+                            <div class="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-md">
+                                <span x-text="dl.image_count"></span> images
+                            </div>
+                        </div>
+                        <!-- Info -->
+                        <div class="p-4">
+                            <h3 class="text-white font-medium text-sm truncate" x-text="dl.title"></h3>
+                            <div class="flex items-center gap-3 mt-2 text-xs text-dark-500">
+                                <span x-text="dl.total_size_mb + ' MB'"></span>
+                                <span x-show="dl.artist" x-text="dl.artist"></span>
+                            </div>
+                            <div x-show="dl.tags && dl.tags.length > 0" class="flex flex-wrap gap-1 mt-2">
+                                <template x-for="tag in dl.tags.slice(0, 5)" :key="tag">
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-dark-800 text-dark-400" x-text="tag"></span>
+                                </template>
+                                <span x-show="dl.tags.length > 5" class="text-[10px] px-1.5 py-0.5 rounded bg-dark-800 text-dark-500" x-text="'+' + (dl.tags.length - 5)"></span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ── Settings ─────────────────────────────────────────── -->
+        <div x-show="page === 'settings'" x-cloak class="fade-in">
+            <h2 class="text-2xl font-bold text-white mb-6">Settings</h2>
+
+            <div class="max-w-2xl space-y-6">
+                <!-- Download Settings -->
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-6">
+                    <h3 class="text-white font-medium mb-4">Download Settings</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-dark-400 mb-1">Output Directory</label>
+                            <input type="text" x-model="settings.download.output_dir"
+                                   class="w-full bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-dark-400 mb-1">Max Concurrent Downloads</label>
+                                <input type="number" x-model.number="settings.download.max_concurrent" min="1" max="20"
+                                       class="w-full bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-dark-400 mb-1">Max Retries</label>
+                                <input type="number" x-model.number="settings.download.max_retries" min="0" max="10"
+                                       class="w-full bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scraper Settings -->
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-6">
+                    <h3 class="text-white font-medium mb-4">Scraper Settings</h3>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-dark-400 mb-1">Min Image Size (KB)</label>
+                                <input type="number" x-model.number="settings.scraper.min_image_size" min="1"
+                                       class="w-full bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-dark-400 mb-1">Min Images Threshold</label>
+                                <input type="number" x-model.number="settings.scraper.min_images_threshold" min="1"
+                                       class="w-full bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-dark-400 mb-1">Min Width (px)</label>
+                                <input type="number" x-model.number="settings.scraper.min_width" min="0"
+                                       class="w-full bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-dark-400 mb-1">Min Height (px)</label>
+                                <input type="number" x-model.number="settings.scraper.min_height" min="0"
+                                       class="w-full bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="settings.scraper.headless" class="sr-only peer">
+                                <div class="w-9 h-5 bg-dark-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-500"></div>
+                            </label>
+                            <span class="text-sm text-dark-400">Headless Browser (invisible)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detection Settings -->
+                <div class="bg-dark-900 border border-dark-800 rounded-xl p-6">
+                    <h3 class="text-white font-medium mb-4">Detection Settings</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-dark-400 mb-1">Max Pages per Gallery</label>
+                            <input type="number" x-model.number="settings.detection.max_pages" min="1" max="999"
+                                   class="w-32 bg-dark-850 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 transition-colors">
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="settings.detection.detect_pagination" class="sr-only peer">
+                                <div class="w-9 h-5 bg-dark-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-500"></div>
+                            </label>
+                            <span class="text-sm text-dark-400">Detect Pagination</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="settings.metadata.save_metadata" class="sr-only peer">
+                                <div class="w-9 h-5 bg-dark-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-500"></div>
+                            </label>
+                            <span class="text-sm text-dark-400">Save Metadata (metadata.json)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <button @click="saveSettings()"
+                        class="bg-gradient-to-r from-violet-500 to-cyan-500 text-white font-medium py-2.5 px-6 rounded-lg hover:from-violet-600 hover:to-cyan-600 transition-all flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Save Settings
+                </button>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- ── Log Modal ──────────────────────────────────────────────── -->
+<div x-show="showLogModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="showLogModal = false">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showLogModal = false"></div>
+    <div class="relative bg-dark-900 border border-dark-800 rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+        <div class="flex items-center justify-between p-5 border-b border-dark-800">
+            <h3 class="text-white font-semibold">Job Logs <span class="text-dark-500 text-sm font-normal" x-text="'(' + modalJobId + ')'"></span></h3>
+            <button @click="showLogModal = false" class="text-dark-500 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-5 log-scroll">
+            <div class="space-y-0.5">
+                <template x-for="(log, idx) in modalLogs" :key="idx">
+                    <div class="flex gap-3 text-xs py-0.5 font-mono">
+                        <span class="text-dark-600 shrink-0" x-text="log.time"></span>
+                        <span :class="{'text-emerald-400': log.level==='success', 'text-red-400': log.level==='error', 'text-amber-400': log.level==='warning', 'text-dark-400': log.level==='info'}"
+                              x-text="log.message"></span>
+                    </div>
+                </template>
+                <div x-show="modalLogs.length === 0" class="text-dark-600 text-center py-8">No logs available</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Toast Notifications ────────────────────────────────────── -->
+<div class="fixed bottom-6 right-6 z-50 space-y-2">
+    <template x-for="(toast, idx) in toasts" :key="idx">
+        <div class="bg-dark-900 border rounded-lg px-4 py-3 shadow-xl fade-in flex items-center gap-3 min-w-[280px]"
+             :class="{'border-emerald-500/30': toast.type==='success', 'border-red-500/30': toast.type==='error', 'border-dark-700': toast.type==='info'}">
+            <svg x-show="toast.type==='success'" class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            <svg x-show="toast.type==='error'" class="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            <span class="text-sm text-dark-300" x-text="toast.message"></span>
+        </div>
+    </template>
+</div>
+
+<script>
+function app() {
+    return {
+        page: 'dashboard',
+        stats: { total_galleries: 0, total_images: 0, total_size_mb: 0, active_jobs: 0, completed_jobs: 0 },
+        downloads: [],
+        allJobs: [],
+        recentJobs: [],
+        toasts: [],
+
+        // Navigation
+        navItems: [
+            { id: 'dashboard', label: 'Dashboard', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>' },
+            { id: 'scrape', label: 'Single Gallery', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>' },
+            { id: 'batch', label: 'Batch Scrape', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>' },
+            { id: 'category', label: 'Category Scrape', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>' },
+            { id: 'jobs', label: 'Jobs', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>' },
+            { id: 'downloads', label: 'Downloads', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>' },
+            { id: 'settings', label: 'Settings', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>' },
+        ],
+
+        // Forms
+        scrapeForm: { url: '', mode: 'auto' },
+        batchForm: { urls: '', mode: 'auto' },
+        categoryForm: { url: '', mode: 'auto', maxPages: 10 },
+        scrapeLoading: false,
+        batchLoading: false,
+        categoryLoading: false,
+
+        modes: [
+            { value: 'auto', label: 'Auto', icon: '⚡' },
+            { value: 'light', label: 'Light', icon: '🚀' },
+            { value: 'browser', label: 'Browser', icon: '🌐' },
+        ],
+
+        // Active job tracking
+        activeJobId: null,
+        activeJobStatus: '',
+        activeJobLogs: [],
+        activeJobCurrent: 0,
+        activeJobTotal: 0,
+        eventSource: null,
+
+        // Settings
+        settings: {
+            download: { output_dir: './downloads', max_concurrent: 5, max_retries: 3 },
+            scraper: { min_image_size: 15, min_images_threshold: 5, min_width: 400, min_height: 400, headless: true },
+            detection: { max_pages: 100, detect_pagination: true },
+            metadata: { save_metadata: true },
+        },
+
+        // Modal
+        showLogModal: false,
+        modalJobId: '',
+        modalLogs: [],
+
+        get activeJobCount() {
+            return this.allJobs.filter(j => j.status === 'running').length;
+        },
+        get batchUrlCount() {
+            return this.batchForm.urls.split('\n').filter(u => u.trim() && !u.trim().startsWith('#')).length;
+        },
+
+        init() {
+            this.loadStats();
+            this.loadJobs();
+            this.loadSettings();
+            // Auto-refresh
+            setInterval(() => {
+                this.loadStats();
+                this.loadJobs();
+            }, 5000);
+        },
+
+        async loadStats() {
+            try {
+                const res = await fetch('/api/stats');
+                this.stats = await res.json();
+            } catch (e) {}
+        },
+
+        async loadJobs() {
+            try {
+                const res = await fetch('/api/jobs');
+                this.allJobs = await res.json();
+                this.recentJobs = this.allJobs.slice(0, 5);
+            } catch (e) {}
+        },
+
+        async loadDownloads() {
+            try {
+                const res = await fetch('/api/downloads');
+                this.downloads = await res.json();
+            } catch (e) {}
+        },
+
+        async loadSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                // Merge with defaults to avoid missing keys
+                if (data.download) Object.assign(this.settings.download, data.download);
+                if (data.scraper) Object.assign(this.settings.scraper, data.scraper);
+                if (data.detection) Object.assign(this.settings.detection, data.detection);
+                if (data.metadata) Object.assign(this.settings.metadata, data.metadata);
+            } catch (e) {}
+        },
+
+        async saveSettings() {
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.settings),
+                });
+                if (res.ok) this.showToast('Settings saved!', 'success');
+                else this.showToast('Failed to save settings', 'error');
+            } catch (e) {
+                this.showToast('Error saving settings', 'error');
+            }
+        },
+
+        async startScrape() {
+            if (!this.scrapeForm.url) return;
+            this.scrapeLoading = true;
+            try {
+                const res = await fetch('/api/scrape', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: this.scrapeForm.url, mode: this.scrapeForm.mode }),
+                });
+                const data = await res.json();
+                if (data.job_id) {
+                    this.showToast('Scraping started!', 'success');
+                    this.startJobStream(data.job_id);
+                } else {
+                    this.showToast(data.error || 'Error', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to start scraping', 'error');
+            }
+            this.scrapeLoading = false;
+        },
+
+        async startBatch() {
+            if (this.batchUrlCount === 0) return;
+            this.batchLoading = true;
+            try {
+                const res = await fetch('/api/scrape/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ urls: this.batchForm.urls, mode: this.batchForm.mode }),
+                });
+                const data = await res.json();
+                if (data.job_id) {
+                    this.showToast(`Batch started: ${data.total} URLs`, 'success');
+                    this.startJobStream(data.job_id);
+                } else {
+                    this.showToast(data.error || 'Error', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to start batch', 'error');
+            }
+            this.batchLoading = false;
+        },
+
+        async startCategory() {
+            if (!this.categoryForm.url) return;
+            this.categoryLoading = true;
+            try {
+                const res = await fetch('/api/scrape/category', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: this.categoryForm.url,
+                        mode: this.categoryForm.mode,
+                        max_pages: this.categoryForm.maxPages,
+                    }),
+                });
+                const data = await res.json();
+                if (data.job_id) {
+                    this.showToast('Category scan started!', 'success');
+                    this.startJobStream(data.job_id);
+                } else {
+                    this.showToast(data.error || 'Error', 'error');
+                }
+            } catch (e) {
+                this.showToast('Failed to start category scrape', 'error');
+            }
+            this.categoryLoading = false;
+        },
+
+        startJobStream(jobId) {
+            // Close existing stream
+            if (this.eventSource) this.eventSource.close();
+
+            this.activeJobId = jobId;
+            this.activeJobStatus = 'queued';
+            this.activeJobLogs = [];
+            this.activeJobCurrent = 0;
+            this.activeJobTotal = 0;
+
+            this.eventSource = new EventSource(`/api/stream/${jobId}`);
+            this.eventSource.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+
+                if (data.done) {
+                    this.activeJobStatus = data.status;
+                    this.eventSource.close();
+                    this.eventSource = null;
+                    this.loadJobs();
+                    this.loadStats();
+                    if (data.status === 'completed') this.showToast('Scraping completed!', 'success');
+                    else if (data.status === 'failed') this.showToast('Scraping failed!', 'error');
+                    return;
+                }
+
+                if (data.status) this.activeJobStatus = data.status;
+                if (data.current !== undefined) this.activeJobCurrent = data.current;
+                if (data.total !== undefined) this.activeJobTotal = data.total;
+                if (data.logs) {
+                    this.activeJobLogs = this.activeJobLogs.concat(data.logs);
+                    // Auto-scroll
+                    this.$nextTick(() => {
+                        const containers = [this.$refs.logContainer, this.$refs.logContainerBatch, this.$refs.logContainerCat];
+                        containers.forEach(c => { if (c) c.scrollTop = c.scrollHeight; });
+                    });
+                }
+            };
+            this.eventSource.onerror = () => {
+                this.eventSource.close();
+                this.eventSource = null;
+            };
+        },
+
+        async viewJobLogs(jobId) {
+            this.modalJobId = jobId;
+            this.showLogModal = true;
+            try {
+                const res = await fetch(`/api/jobs/${jobId}/logs`);
+                this.modalLogs = await res.json();
+            } catch (e) {
+                this.modalLogs = [];
+            }
+        },
+
+        showToast(message, type = 'info') {
+            const toast = { message, type };
+            this.toasts.push(toast);
+            setTimeout(() => {
+                const idx = this.toasts.indexOf(toast);
+                if (idx > -1) this.toasts.splice(idx, 1);
+            }, 4000);
+        },
+    };
+}
+</script>
+
+</body>
+</html>

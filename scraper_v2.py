@@ -1269,28 +1269,9 @@ class HybridScraper:
 
             all_images = await self._scrape_with_playwright(url)
 
-        # Check if this is a listing/category page ONLY if few images found
-        # A page with many images is a gallery, not a listing page
-        min_images = self.config['scraper'].get('min_images_threshold', 5)
-        if not _from_listing and len(all_images) < min_images:
-            # Quick HTML fetch to check page structure
-            listing_soup = None
-            try:
-                headers = {'User-Agent': self.config['scraper'].get('user_agent', 'Mozilla/5.0')}
-                resp = requests.get(url, headers=headers, timeout=15)
-                if resp.status_code == 200:
-                    listing_soup = BeautifulSoup(resp.text, 'html.parser')
-            except Exception:
-                pass
-
-            if listing_soup and self._is_listing_page(listing_soup, url):
-                console.print("[cyan]🔍 Detected listing/category page with gallery grid![/cyan]")
-                listing_handled = await self._try_as_listing_page(url, output_dir, mode)
-                if listing_handled:
-                    return
-
+        # Only check for listing/category pages when NO images were found
+        # Never treat a page with images as a listing page
         if not all_images:
-            # Before giving up, also check if this is a listing/category page
             if not _from_listing:
                 listing_handled = await self._try_as_listing_page(url, output_dir, mode)
                 if listing_handled:
