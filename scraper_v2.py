@@ -819,6 +819,22 @@ class GalleryDetector:
         best = max(good_candidates, key=lambda x: x[2])  # deepest
         return best[0]
 
+    def _is_in_excluded_section(self, element) -> bool:
+        """Check if an element is inside a comment/sidebar/nav section"""
+        exclude_patterns = ['comment', 'disqus', 'respond', 'reply', 'sidebar',
+                            'related', 'similar', 'recommend', 'popular', 'footer',
+                            'header', 'nav', 'menu', 'widget', 'banner', 'avatar',
+                            'user-info', 'author', 'profile']
+        for parent in element.parents:
+            if not parent.name:
+                continue
+            parent_classes = ' '.join(parent.get('class', [])).lower()
+            parent_id = (parent.get('id', '') or '').lower()
+            for pattern in exclude_patterns:
+                if pattern in parent_classes or pattern in parent_id:
+                    return True
+        return False
+
     def _extract_images_from_container(self, container, base_url: str) -> List[str]:
         """Extract all image URLs from a container.
         Prefers full-size URLs from <a href> over thumbnail URLs from <img src>.
@@ -830,6 +846,8 @@ class GalleryDetector:
 
         # Pass 1: Find <a> tags that link to images - these are full-size URLs
         for link in container.find_all('a'):
+            if self._is_in_excluded_section(link):
+                continue
             href = link.get('href', '')
             if self._is_image_url(href):
                 full_url = urljoin(base_url, href)
@@ -844,6 +862,8 @@ class GalleryDetector:
 
         # Pass 2: Find <img> tags NOT already covered by <a> links
         for img in container.find_all('img'):
+            if self._is_in_excluded_section(img):
+                continue
             img_url = self._get_best_image_url(img, base_url)
             if img_url and img_url not in seen_urls and img_url not in thumbnail_urls:
                 images.append(img_url)
@@ -861,6 +881,8 @@ class GalleryDetector:
 
         # Pass 1: <a> links to images (full-size)
         for link in soup.find_all('a'):
+            if self._is_in_excluded_section(link):
+                continue
             href = link.get('href', '')
             if self._is_image_url(href):
                 full_url = urljoin(base_url, href)
@@ -874,6 +896,8 @@ class GalleryDetector:
 
         # Pass 2: <img> tags not covered by <a> links
         for img in soup.find_all('img'):
+            if self._is_in_excluded_section(img):
+                continue
             img_url = self._get_best_image_url(img, base_url)
             if img_url and img_url not in seen_urls and img_url not in thumbnail_urls:
                 images.append(img_url)
