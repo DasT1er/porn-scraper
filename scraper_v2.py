@@ -819,10 +819,27 @@ class GalleryDetector:
         best = max(good_candidates, key=lambda x: x[2])  # deepest
         return best[0]
 
+    def _is_in_excluded_section(self, element) -> bool:
+        """Check if an element is inside a comment/sidebar/nav section"""
+        exclude_patterns = ['comment', 'disqus', 'respond', 'reply', 'sidebar',
+                            'related', 'similar', 'recommend', 'popular', 'footer',
+                            'header', 'nav', 'menu', 'widget', 'banner', 'avatar',
+                            'user-info', 'author', 'profile']
+        for parent in element.parents:
+            if not parent.name:
+                continue
+            parent_classes = ' '.join(parent.get('class', [])).lower()
+            parent_id = (parent.get('id', '') or '').lower()
+            for pattern in exclude_patterns:
+                if pattern in parent_classes or pattern in parent_id:
+                    return True
+        return False
+
     def _extract_images_from_container(self, container, base_url: str) -> List[str]:
         """Extract all image URLs from a container.
         Prefers full-size URLs from <a href> over thumbnail URLs from <img src>.
         When <a> wraps <img>, uses the link URL (full-size) and skips the img (thumbnail).
+        Container was already carefully selected, so trust its contents.
         """
         images = []
         seen_urls = set()
@@ -861,6 +878,8 @@ class GalleryDetector:
 
         # Pass 1: <a> links to images (full-size)
         for link in soup.find_all('a'):
+            if self._is_in_excluded_section(link):
+                continue
             href = link.get('href', '')
             if self._is_image_url(href):
                 full_url = urljoin(base_url, href)
@@ -874,6 +893,8 @@ class GalleryDetector:
 
         # Pass 2: <img> tags not covered by <a> links
         for img in soup.find_all('img'):
+            if self._is_in_excluded_section(img):
+                continue
             img_url = self._get_best_image_url(img, base_url)
             if img_url and img_url not in seen_urls and img_url not in thumbnail_urls:
                 images.append(img_url)
@@ -961,6 +982,18 @@ class ImageDownloader:
             console.print("[yellow]  Only file size will be checked. Install Pillow for full validation:[/yellow]")
             console.print("[yellow]  pip install Pillow --prefer-binary[/yellow]\n")
 
+    def set_comic_mode(self, url: str):
+        """Detect comic URLs and lower thresholds so comic pages aren't skipped"""
+        comic_patterns = ['/comics/', '/comic/', 'multporn', 'hentai', 'manga',
+                          'doujin', 'rule34', 'paheal', 'gelbooru', 'e621',
+                          'nhentai', 'hitomi', 'imhentai']
+        is_comic = any(p in url.lower() for p in comic_patterns)
+        if is_comic:
+            self.min_size = 3 * 1024  # 3 KB
+            self.min_width = 100
+            self.min_height = 100
+            console.print("[cyan]🎨 Comic mode: lower size filters to keep all pages[/cyan]")
+
     async def download_images(
         self,
         image_urls: List[str],
@@ -1019,7 +1052,7 @@ class ImageDownloader:
                     content = response.content
 
                     # Validate image
-                    if not self._validate_image(content):
+                    if not self._validate_image(content, url):
                         stats['skipped'] += 1
                         progress.update(task_id, advance=1)
                         return
@@ -1045,10 +1078,12 @@ class ImageDownloader:
                         stats['failed'] += 1
                         progress.update(task_id, advance=1)
 
-    def _validate_image(self, content: bytes) -> bool:
+    def _validate_image(self, content: bytes, url: str = '') -> bool:
         """Validate image size and dimensions"""
         # Check file size
+        size_kb = len(content) / 1024
         if len(content) < self.min_size:
+            console.print(f"[dim]  ⊘ Skip (size: {size_kb:.0f}KB < {self.min_size/1024:.0f}KB): {url[-50:]}[/dim]")
             return False
 
         # Check dimensions (only if Pillow is available)
@@ -1058,14 +1093,14 @@ class ImageDownloader:
                 width, height = img.size
 
                 if width < self.min_width or height < self.min_height:
+                    console.print(f"[dim]  ⊘ Skip ({width}x{height} < {self.min_width}x{self.min_height}): {url[-50:]}[/dim]")
                     return False
 
                 return True
-            except Exception:
+            except Exception as e:
+                console.print(f"[dim]  ⊘ Skip (invalid image: {e}): {url[-50:]}[/dim]")
                 return False
         else:
-            # Without Pillow, we can only validate file size
-            # Assume image is valid if it's large enough
             return True
 
     def _generate_filename(self, url: str, index: int) -> str:
@@ -1234,8 +1269,10 @@ class HybridScraper:
 
             all_images = await self._scrape_with_playwright(url)
 
-        # Check if this is a listing/category page (before downloading images)
-        if not _from_listing:
+        # Check if this is a listing/category page ONLY if few images found
+        # A page with many images is a gallery, not a listing page
+        min_images = self.config['scraper'].get('min_images_threshold', 5)
+        if not _from_listing and len(all_images) < min_images:
             # Quick HTML fetch to check page structure
             listing_soup = None
             try:
@@ -1263,6 +1300,9 @@ class HybridScraper:
             return
 
         console.print(f"\n[bold green]✓ Total unique images found: {len(all_images)}[/bold green]\n")
+
+        # Detect comic pages and lower filters
+        self.downloader.set_comic_mode(url)
 
         # Download images
         with Progress(
@@ -1814,6 +1854,11 @@ class HybridScraper:
             r'/contact',
             r'/about',
             r'/sitemap',
+            r'/comment/',
+            r'/reply/',
+            r'/node/\d+/\d+',
+            r'/user/',
+            r'/simple$',
         ]
 
         for pattern in excluded_patterns:
